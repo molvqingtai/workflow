@@ -38,7 +38,10 @@ export class StateManager {
   /**
    * 自动恢复状态
    */
-  async autoRestore(nodePool: Map<string, Worker | Workflow>, executionOrder: string[]): Promise<ExecutionState | null> {
+  async autoRestore(
+    nodePool: Map<string, Worker | Workflow>,
+    executionOrder: string[]
+  ): Promise<ExecutionState | null> {
     const snapshot = await this.storage.get(`workflow:${this.workflowId}:state`)
     if (!snapshot) {
       return null
@@ -105,7 +108,9 @@ export class StateManager {
       })
 
     // 从 nodePool 获取工作流实例来访问描述
-    const workflowInstance = [...nodePool.values()].find(item => item.type === 'workflow' && item.id === this.workflowId) as Workflow | undefined
+    const workflowInstance = [...nodePool.values()].find(
+      (item) => item.type === 'workflow' && item.id === this.workflowId
+    ) as Workflow | undefined
 
     return {
       id: this.workflowId,

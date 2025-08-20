@@ -1,14 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import {
-  Workflow,
-  Worker,
-  MemoryStorage,
-  ExecutionStatus,
-  type NextResult,
-  type WorkerResult,
-  type ExecutionContext,
-  type NextFunction
-} from 'workflow'
+import { Workflow, Worker, MemoryStorage, ExecutionStatus, type ExecutionContext, type NextFunction } from 'workflow'
 
 // 测试用的 Worker 类，支持不同的跳转方式
 class NextTestWorker extends Worker {

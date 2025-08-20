@@ -1,7 +1,7 @@
 import { MemoryStorage, Storage } from './MemoryStorage'
 import EventHub from './EventHub'
 import { ExecutionEngine } from './ExecutionEngine'
-import { StateManager, WorkflowSnapshot, WorkerSnapshot } from './StateManager'
+import { StateManager, WorkflowSnapshot } from './StateManager'
 
 // ===== 工作流相关类型定义 =====
 
@@ -81,7 +81,6 @@ export interface WorkerConfig {
   description?: string
 }
 
-
 // Worker 基类
 export abstract class Worker {
   readonly type = 'worker' as const
@@ -144,6 +143,7 @@ export interface WorkflowStatusChangedEventData extends BaseEventData {
 }
 
 export interface WorkflowPausedEventData extends BaseEventData {}
+
 export interface WorkflowResumedEventData extends BaseEventData {}
 
 export interface WorkflowCompletedEventData extends BaseEventData {

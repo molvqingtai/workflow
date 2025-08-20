@@ -4,8 +4,6 @@ import {
   Worker,
   MemoryStorage,
   ExecutionStatus,
-  type NextResult,
-  type WorkerResult,
   type ExecutionContext,
   type NextFunction,
   type WorkflowSnapshot

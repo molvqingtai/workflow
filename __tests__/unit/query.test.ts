@@ -1,14 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import {
-  Workflow,
-  Worker,
-  MemoryStorage,
-  ExecutionStatus,
-  type NextResult,
-  type WorkerResult,
-  type ExecutionContext,
-  type NextFunction
-} from 'workflow'
+import { Workflow, Worker, MemoryStorage, ExecutionStatus, type ExecutionContext, type NextFunction } from 'workflow'
 
 // 测试用的 Worker 类
 class QueryTestWorker extends Worker {

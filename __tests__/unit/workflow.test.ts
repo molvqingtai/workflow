@@ -6,8 +6,6 @@ import {
   ExecutionStatus,
   WorkflowEvents,
   WorkerEvents,
-  type NextResult,
-  type WorkerResult,
   type ExecutionContext,
   type NextFunction
 } from 'workflow'
@@ -60,7 +58,7 @@ class ExecutionFailureWorker extends Worker {
     this.processTime = processTime
   }
 
-  async execute(context: ExecutionContext, next: NextFunction): Promise<void> {
+  async execute(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, this.processTime))
     // 不调用 next，表示执行失败，应该终止工作流
     return
@@ -76,7 +74,7 @@ class ErrorWorker extends Worker {
     this.errorMessage = errorMessage
   }
 
-  async execute(context: ExecutionContext, next: NextFunction): Promise<void> {
+  async execute(): Promise<void> {
     throw new Error(this.errorMessage)
   }
 }
