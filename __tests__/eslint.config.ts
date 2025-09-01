@@ -16,7 +16,7 @@ export default [
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-expressions': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       'no-async-promise-executor': 'off'
     }

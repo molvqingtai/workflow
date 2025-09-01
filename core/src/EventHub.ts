@@ -4,7 +4,7 @@ type Listener = (...args: any[]) => void
 type DefaultEventMap = Record<Event, Listener>
 
 export default class EventHub<EventMap extends DefaultEventMap = DefaultEventMap> {
-  private readonly listeners = new Map<Event, Set<{ once: boolean; handler: Listener }>>()
+  readonly listeners = new Map<Event, Set<{ once: boolean; handler: Listener }>>()
 
   constructor() {
     this.add = this.add.bind(this)
@@ -14,7 +14,7 @@ export default class EventHub<EventMap extends DefaultEventMap = DefaultEventMap
     this.off = this.off.bind(this)
   }
 
-  private add<K extends keyof EventMap>(event: K | K[], handler: EventMap[K], once: boolean): void {
+  add<K extends keyof EventMap>(event: K | K[], handler: EventMap[K], once: boolean): void {
     ;[event].flat().forEach((event) => {
       this.listeners.set(event, this.listeners.get(event)?.add({ once, handler }) ?? new Set([{ once, handler }]))
     })
