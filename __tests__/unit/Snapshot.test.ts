@@ -1,14 +1,24 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Workflow, Work, Step, STATUS } from 'workflow'
 
+// 生成唯一ID的工具函数，避免全局状态污染
+const generateUniqueId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
 describe('快照和存储系统测试', () => {
   let workflow: Workflow
   let work: Work
   let step: Step
+  let stepId: string
+  let workId: string
+  let workflowId: string
 
   beforeEach(() => {
+    stepId = generateUniqueId('snapshot-step')
+    workId = generateUniqueId('snapshot-work')
+    workflowId = generateUniqueId('snapshot-workflow')
+
     step = new Step({
-      id: 'snapshot-step',
+      id: stepId,
       name: '快照测试步骤',
       description: '用于测试快照功能的步骤',
       run: async (input: any) => {
@@ -18,7 +28,7 @@ describe('快照和存储系统测试', () => {
     })
 
     work = new Work({
-      id: 'snapshot-work',
+      id: workId,
       name: '快照测试工作',
       description: '用于测试快照功能的工作'
     })
@@ -26,7 +36,7 @@ describe('快照和存储系统测试', () => {
     work.add(step)
 
     workflow = new Workflow({
-      id: 'snapshot-workflow',
+      id: workflowId,
       name: '快照测试工作流',
       description: '用于测试快照功能的工作流'
     })
@@ -41,7 +51,7 @@ describe('快照和存储系统测试', () => {
       const snapshot = step.getSnapshot()
 
       expect(snapshot).toMatchObject({
-        id: 'snapshot-step',
+        id: stepId,
         name: '快照测试步骤',
         description: '用于测试快照功能的步骤',
         type: 'step',
@@ -55,7 +65,7 @@ describe('快照和存储系统测试', () => {
       const snapshot = step.getSnapshot()
 
       expect(snapshot).toMatchObject({
-        id: 'snapshot-step',
+        id: stepId,
         name: '快照测试步骤',
         description: '用于测试快照功能的步骤',
         type: 'step',
@@ -66,8 +76,9 @@ describe('快照和存储系统测试', () => {
     })
 
     it('应该能够创建失败Step的快照', async () => {
+      const failStepId = generateUniqueId('fail-step')
       const failStep = new Step({
-        id: 'fail-step',
+        id: failStepId,
         run: async () => {
           throw new Error('步骤失败')
         }
@@ -81,7 +92,7 @@ describe('快照和存储系统测试', () => {
 
       const snapshot = failStep.getSnapshot()
 
-      expect(snapshot.id).toBe('fail-step')
+      expect(snapshot.id).toBe(failStepId)
       expect(snapshot.status).toBe(STATUS.FAILED)
       expect(snapshot.input).toBe('input')
     })
@@ -94,7 +105,7 @@ describe('快照和存储系统测试', () => {
       const snapshot = work.getSnapshot()
 
       expect(snapshot).toMatchObject({
-        id: 'snapshot-work',
+        id: workId,
         name: '快照测试工作',
         description: '用于测试快照功能的工作',
         type: 'work',
@@ -104,15 +115,19 @@ describe('快照和存储系统测试', () => {
 
       expect(snapshot.steps).toHaveLength(1)
       expect(snapshot.steps[0]).toMatchObject({
-        id: 'snapshot-step',
+        id: stepId,
         type: 'step',
         status: STATUS.SUCCESS
       })
     })
 
     it('应该能够创建包含多个步骤的Work快照', async () => {
+      const step1Id = generateUniqueId('step-1')
+      const step2Id = generateUniqueId('step-2')
+      const multiStepWorkId = generateUniqueId('multi-step-work')
+
       const step2 = new Step({
-        id: 'step-2',
+        id: step2Id,
         name: '第二个步骤',
         run: async (input: any) => {
           return `Step2: ${input}`
@@ -120,12 +135,12 @@ describe('快照和存储系统测试', () => {
       })
 
       const multiStepWork = new Work({
-        id: 'multi-step-work',
+        id: multiStepWorkId,
         name: '多步骤工作'
       })
 
       const step1 = new Step({
-        id: 'step-1',
+        id: step1Id,
         run: async (input: string) => {
           return `Step1: ${input}`
         }
@@ -137,8 +152,8 @@ describe('快照和存储系统测试', () => {
       const snapshot = multiStepWork.getSnapshot()
 
       expect(snapshot.steps).toHaveLength(2)
-      expect(snapshot.steps[0].id).toBe('step-1')
-      expect(snapshot.steps[1].id).toBe('step-2')
+      expect(snapshot.steps[0].id).toBe(step1Id)
+      expect(snapshot.steps[1].id).toBe(step2Id)
     })
   })
 
@@ -149,7 +164,7 @@ describe('快照和存储系统测试', () => {
       const snapshot = workflow.getSnapshot()
 
       expect(snapshot).toMatchObject({
-        id: 'snapshot-workflow',
+        id: workflowId,
         name: '快照测试工作流',
         description: '用于测试快照功能的工作流',
         type: 'workflow',
@@ -159,27 +174,29 @@ describe('快照和存储系统测试', () => {
 
       expect(snapshot.works).toHaveLength(1)
       expect(snapshot.works[0]).toMatchObject({
-        id: 'snapshot-work',
+        id: workId,
         type: 'work',
         status: STATUS.SUCCESS
       })
 
       expect(snapshot.works[0].steps).toHaveLength(1)
       expect(snapshot.works[0].steps[0]).toMatchObject({
-        id: 'snapshot-step',
+        id: stepId,
         type: 'step',
         status: STATUS.SUCCESS
       })
     })
 
     it('应该能够创建包含多个Work的Workflow快照', async () => {
+      const work2Id = generateUniqueId('work-2')
       const work2 = new Work({
-        id: 'work-2',
+        id: work2Id,
         name: '第二个工作'
       })
 
+      const step2Id = generateUniqueId('step-2')
       const step2 = new Step({
-        id: 'step-2',
+        id: step2Id,
         run: async (input: any) => {
           return `Work2结果: ${input}`
         }
@@ -187,8 +204,9 @@ describe('快照和存储系统测试', () => {
 
       work2.add(step2)
 
+      const multiWorkflowId = generateUniqueId('multi-workflow')
       const multiWorkflow = new Workflow({
-        id: 'multi-workflow',
+        id: multiWorkflowId,
         name: '多工作工作流'
       })
 
@@ -198,8 +216,8 @@ describe('快照和存储系统测试', () => {
       const snapshot = multiWorkflow.getSnapshot()
 
       expect(snapshot.works).toHaveLength(2)
-      expect(snapshot.works[0].id).toBe('snapshot-work')
-      expect(snapshot.works[1].id).toBe('work-2')
+      expect(snapshot.works[0].id).toBe(workId)
+      expect(snapshot.works[1].id).toBe(work2Id)
     })
   })
 
@@ -211,7 +229,7 @@ describe('快照和存储系统测试', () => {
       const snapshot = step.getSnapshot()
 
       expect(snapshot).toBeDefined()
-      expect(snapshot.id).toBe('snapshot-step')
+      expect(snapshot.id).toBe(stepId)
       expect(snapshot.status).toBe(STATUS.SUCCESS)
       expect(snapshot.input).toBe('快照测试')
       expect(snapshot.type).toBe('step')
@@ -224,7 +242,7 @@ describe('快照和存储系统测试', () => {
       const snapshot = work.getSnapshot()
 
       expect(snapshot).toBeDefined()
-      expect(snapshot.id).toBe('snapshot-work')
+      expect(snapshot.id).toBe(workId)
       expect(snapshot.status).toBe(STATUS.SUCCESS)
       expect(snapshot.type).toBe('work')
       expect(snapshot.steps).toBeDefined()
@@ -361,8 +379,9 @@ describe('快照和存储系统测试', () => {
         }
       }
 
+      const customStepId = generateUniqueId('custom-storage-step')
       const customStep = new Step({
-        id: 'custom-storage-step',
+        id: customStepId,
         storage: customStorageImpl,
         run: async (input: any) => {
           return `自定义存储: ${input}`
@@ -373,7 +392,7 @@ describe('快照和存储系统测试', () => {
 
       // 验证快照功能正常工作
       const snapshot = customStep.getSnapshot()
-      expect(snapshot.id).toBe('custom-storage-step')
+      expect(snapshot.id).toBe(customStepId)
       expect(snapshot.status).toBe(STATUS.SUCCESS)
     })
   })

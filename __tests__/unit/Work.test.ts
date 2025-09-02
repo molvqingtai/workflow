@@ -1,20 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Work, Step, STATUS } from 'workflow'
 
+// 生成唯一ID的工具函数，避免全局状态污染
+const generateUniqueId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
 describe('Work', () => {
   let work: Work<number, string>
   let step1: Step<number, string>
   let step2: Step<string, number>
+  let workId: string
+  let step1Id: string
+  let step2Id: string
 
   beforeEach(() => {
+    workId = generateUniqueId('test-work')
+    step1Id = generateUniqueId('step-1')
+    step2Id = generateUniqueId('step-2')
+
     work = new Work({
-      id: 'test-work',
+      id: workId,
       name: 'Test Work',
       description: 'A test work'
     })
 
     step1 = new Step({
-      id: 'step-1',
+      id: step1Id,
       name: 'First Step',
       run: async (input: number) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
@@ -23,7 +33,7 @@ describe('Work', () => {
     })
 
     step2 = new Step({
-      id: 'step-2',
+      id: step2Id,
       name: 'Second Step',
       run: async (input: string) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
@@ -35,7 +45,7 @@ describe('Work', () => {
 
   describe('构造函数', () => {
     it('应该正确初始化Work', () => {
-      expect(work.id).toBe('test-work')
+      expect(work.id).toBe(workId)
       expect(work.name).toBe('Test Work')
       expect(work.description).toBe('A test work')
       expect(work.type).toBe('work')
@@ -83,7 +93,7 @@ describe('Work', () => {
 
       const result = await work.run(42)
 
-      expect(result.id).toBe('test-work')
+      expect(result.id).toBe(workId)
       expect(result.status).toBe(STATUS.SUCCESS)
       expect(result.input).toBe(42)
       expect(result.output).toBe('Processed: 42')
@@ -94,17 +104,18 @@ describe('Work', () => {
 
     it('应该成功执行多个步骤的链式调用', async () => {
       // 创建一个简化的步骤链
-      const simpleWork = new Work({ id: 'simple-work' })
+      const simpleWorkId = generateUniqueId('simple-work')
+      const simpleWork = new Work({ id: simpleWorkId })
 
       const step1 = new Step({
-        id: 'chain-step-1',
+        id: generateUniqueId('chain-step-1'),
         run: async (input: number) => {
           return `Step1: ${input}`
         }
       })
 
       const step2 = new Step({
-        id: 'chain-step-2',
+        id: generateUniqueId('chain-step-2'),
         run: async (input: string) => {
           return `Step2: ${input}`
         }
@@ -114,22 +125,28 @@ describe('Work', () => {
 
       const result = await simpleWork.run(100)
 
-      expect(result.id).toBe('simple-work')
+      expect(result.id).toBe(simpleWorkId)
       expect(result.status).toBe(STATUS.SUCCESS)
       expect(result.output).toBe('Step2: Step1: 100')
       expect(simpleWork.status).toBe(STATUS.SUCCESS)
     })
 
-    it('应该在已经运行的Work上抛出错误', async () => {
+    it('应该在重复运行时返回快照', async () => {
       work.add(step1)
-      await work.run(42)
+      const firstResult = await work.run(42)
 
-      await expect(work.run(50)).rejects.toThrow('Work is already started')
+      // 第二次运行应该返回相同的快照
+      const secondResult = await work.run(50) // 输入被忽略
+
+      expect(secondResult).toEqual(firstResult)
+      expect(secondResult.id).toBe(workId)
+      expect(secondResult.input).toBe(42) // 原始输入
+      expect(secondResult.status).toBe(STATUS.SUCCESS)
     })
 
     it('应该处理步骤执行失败的情况', async () => {
       const failingStep = new Step({
-        id: 'failing-step',
+        id: generateUniqueId('failing-step'),
         run: async () => {
           throw new Error('Step failed')
         }
@@ -144,7 +161,7 @@ describe('Work', () => {
 
     it('应该处理步骤返回失败结果的情况', async () => {
       const businessFailStep = new Step({
-        id: 'business-fail-step',
+        id: generateUniqueId('business-fail-step'),
         run: async (input: number) => {
           if (input < 0) {
             throw new Error('Invalid input')
@@ -167,7 +184,7 @@ describe('Work', () => {
       let step1Completed = false
 
       const pausableStep = new Step({
-        id: 'pausable-step',
+        id: generateUniqueId('pausable-step'),
         run: async (input: number) => {
           step1Started = true
           await new Promise((resolve) => setTimeout(resolve, 100))
@@ -197,7 +214,7 @@ describe('Work', () => {
 
       // 等待完成
       const result = await runPromise
-      expect(result.id).toBe('test-work')
+      expect(result.id).toBe(workId)
       expect(result.status).toBe(STATUS.SUCCESS)
       expect(result.output).toBe('Result: 42')
       expect(step1Completed).toBe(true)
@@ -215,7 +232,7 @@ describe('Work', () => {
 
     it('应该处理暂停过程中的错误', async () => {
       // 模拟暂停时发生错误的情况
-      const errorDuringPause = new Work({ id: 'error-work' })
+      const errorDuringPause = new Work({ id: generateUniqueId('error-work') })
 
       // 正常情况下pause方法不会抛出错误，这里主要测试错误处理逻辑存在
       const snapshot = await errorDuringPause.pause()
@@ -256,13 +273,13 @@ describe('Work', () => {
       await work.run(42)
 
       const snapshot = work.getSnapshot()
-      expect(snapshot.id).toBe('test-work')
+      expect(snapshot.id).toBe(workId)
       expect(snapshot.name).toBe('Test Work')
       expect(snapshot.type).toBe('work')
       expect(snapshot.status).toBe(STATUS.SUCCESS)
       expect(snapshot.input).toBe(42)
       expect(snapshot.steps).toHaveLength(1)
-      expect(snapshot.steps[0].id).toBe('step-1')
+      expect(snapshot.steps[0].id).toBe(step1Id)
     })
   })
 
@@ -270,34 +287,36 @@ describe('Work', () => {
     it('应该支持从Step推导Work类型', () => {
       // 这个测试主要验证编译时类型推导
       const typedStep = new Step<string, number>({
-        id: 'typed-step',
+        id: generateUniqueId('typed-step'),
         run: async (input: string) => input.length
       })
 
       // 创建未初始化的Work，应该能从Step推导类型
-      const uninitializedWork = new Work({ id: 'uninitialized' })
+      const uninitializedId = generateUniqueId('uninitialized')
+      const uninitializedWork = new Work({ id: uninitializedId })
       const typedWork = uninitializedWork.add(typedStep)
 
       // 验证类型推导正确（编译时验证）
-      expect(typedWork.id).toBe('uninitialized')
+      expect(typedWork.id).toBe(uninitializedId)
     })
 
     it('应该支持预定义类型的Work', async () => {
       // 预定义类型的Work
+      const predefinedId = generateUniqueId('predefined')
       const predefinedWork = new Work<number, string>({
-        id: 'predefined',
+        id: predefinedId,
         name: 'Predefined Work'
       })
 
       const compatibleStep = new Step<number, string>({
-        id: 'compatible-step',
+        id: generateUniqueId('compatible-step'),
         run: async (input: number) => input.toString()
       })
 
       predefinedWork.add(compatibleStep)
 
       const result = await predefinedWork.run(123)
-      expect(result.id).toBe('predefined')
+      expect(result.id).toBe(predefinedId)
       expect(result.status).toBe(STATUS.SUCCESS)
       expect(result.output).toBe('123')
     })

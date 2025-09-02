@@ -1,6 +1,9 @@
 import EventHub from './EventHub'
 import { MemoryStorage, Storage } from './MemoryStorage'
 
+// 创建全局共享的 MemoryStorage 实例
+const memoryStorage = new MemoryStorage()
+
 export const STATUS = {
   PENDING: 'pending',
   RUNNING: 'running',
@@ -75,7 +78,7 @@ class Snapshot<T extends Workflow<any> | Work<any, any> | Step> {
   private runner: T
   constructor(runner: T, storage?: Storage) {
     this.runner = runner
-    this.storage = storage ?? new MemoryStorage()
+    this.storage = storage ?? memoryStorage // 恢复使用全局默认值
   }
 
   // 专门的静态方法，类型明确
@@ -83,7 +86,7 @@ class Snapshot<T extends Workflow<any> | Work<any, any> | Step> {
     workflow: Workflow<I>,
     storage?: Storage
   ): WorkflowSnapshot<I, O> {
-    const s = storage ?? new MemoryStorage()
+    const s = storage ?? memoryStorage
     return {
       id: workflow.id,
       name: workflow.name,
@@ -100,7 +103,7 @@ class Snapshot<T extends Workflow<any> | Work<any, any> | Step> {
     work: Work<I, O>,
     storage?: Storage
   ): WorkSnapshot<I, O extends WorkUninitialized ? undefined : O> {
-    const s = storage ?? new MemoryStorage()
+    const s = storage ?? memoryStorage
     return {
       id: work.id,
       name: work.name,
@@ -185,7 +188,7 @@ class Workflow<I = any> {
   output?: WorkSnapshot[]
   constructor(options?: WorkflowOptions) {
     this.eventHub = new EventHub()
-    this.storage = options?.storage ?? new MemoryStorage()
+    this.storage = options?.storage ?? memoryStorage
     this.snapshot = new Snapshot(this, this.storage)
     this.id = options?.id ?? `workflow-${Date.now()}`
     this.name = options?.name
@@ -259,10 +262,11 @@ class Workflow<I = any> {
     // 确保已经恢复状态
     await this.autoRestore()
 
-    // 如果不是 PENDING 状态，直接返回当前快照
+    // 如果不是 PENDING 状态，说明已经运行过了，直接返回快照
     if (this.status !== STATUS.PENDING) {
       return this.snapshot.captureSnapshot()
     }
+    // PENDING 状态继续执行
 
     try {
       this.input = input
@@ -350,7 +354,7 @@ class Work<I = any, O = WorkUninitialized> {
     this.name = options.name
     this.description = options.description
     this.eventHub = new EventHub()
-    this.storage = options?.storage ?? new MemoryStorage()
+    this.storage = options?.storage ?? memoryStorage
     this.snapshot = new Snapshot(this, this.storage)
   }
 
@@ -425,19 +429,9 @@ class Work<I = any, O = WorkUninitialized> {
     // 每次都先恢复最新状态
     await this.autoRestore()
 
-    // 根据恢复后的状态决定行为
-    if (this.status === STATUS.SUCCESS) {
-      // 已经成功完成，返回之前的结果
+    // 如果不是 PENDING 状态，说明已经运行过了，直接返回快照
+    if (this.status !== STATUS.PENDING) {
       return this.snapshot.captureSnapshot() as WorkSnapshot<I, O>
-    } else if (this.status === STATUS.FAILED) {
-      // 已经失败，抛出错误
-      throw new Error('Work has already failed')
-    } else if (this.status === STATUS.RUNNING) {
-      // 正在运行，不允许重复运行
-      throw new Error('Work is already running')
-    } else if (this.status === STATUS.PAUSED) {
-      // 暂停状态，等待恢复
-      throw new Error('Work is paused, please resume first')
     }
     // 只有 PENDING 状态才继续执行
 
@@ -546,7 +540,7 @@ class Step<I = any, O = any> {
     this.name = options.name
     this.description = options.description
     this.eventHub = new EventHub()
-    this.storage = options?.storage ?? new MemoryStorage()
+    this.storage = options?.storage ?? memoryStorage
     this.snapshot = new Snapshot(this, this.storage)
     this._run = options.run
   }
@@ -575,20 +569,9 @@ class Step<I = any, O = any> {
       // 每次都先恢复最新状态
       await this.autoRestore()
 
-      // 根据恢复后的状态决定行为
-      if (this.status === STATUS.SUCCESS) {
-        // 已经成功完成，返回之前的结果
+      // 如果不是 PENDING 状态，说明已经运行过了，直接返回快照
+      if (this.status !== STATUS.PENDING) {
         return this.snapshot.captureSnapshot()
-      } else if (this.status === STATUS.FAILED) {
-        // 已经失败，抛出错误
-        throw new Error('Step has already failed')
-      } else if (this.status === STATUS.RUNNING) {
-        // 正在运行，不允许重复运行
-        throw new Error('Step is already running')
-      } else if (this.status === STATUS.PAUSED) {
-        // 暂停状态，等待恢复后继续执行
-        await this.pauseResolvers!.promise
-        // 暂停结束后，继续执行剩余逻辑
       }
       // PENDING 状态或暂停恢复后继续执行
 
@@ -607,17 +590,18 @@ class Step<I = any, O = any> {
       // 存储原始数据到 output
       this.output = rawData
 
-      // 检查是否在完成前被暂停
-      if (this.pauseResolvers) {
-        await this.pauseResolvers.promise
-      }
-
       this.status = STATUS.SUCCESS
 
       // 创建快照并返回
       const finalSnapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot()
       this.eventHub.emit('step:success', finalSnapshot)
+
+      // 检查是否在完成前被暂停
+      if (this.pauseResolvers) {
+        await this.pauseResolvers.promise
+      }
+
       return finalSnapshot
     } catch (error) {
       this.status = STATUS.FAILED
@@ -648,6 +632,7 @@ class Step<I = any, O = any> {
   async resume(): Promise<StepSnapshot> {
     try {
       if (this.status === STATUS.PAUSED) {
+        // 继续执行（默认行为）
         this.status = STATUS.RUNNING
         this.pauseResolvers?.resolve()
         const snapshot = this.snapshot.captureSnapshot()

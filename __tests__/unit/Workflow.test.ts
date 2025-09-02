@@ -1,22 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Workflow, Work, Step, STATUS } from 'workflow'
 
+// 生成唯一ID的工具函数，避免全局状态污染
+const generateUniqueId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
 describe('Workflow', () => {
   let workflow: Workflow<number>
   let work1: Work<number, string>
   let work2: Work<number, number>
   let step1: Step<number, string>
   let step2: Step<number, number>
+  let workflowId: string
+  let work1Id: string
+  let work2Id: string
 
   beforeEach(() => {
+    workflowId = generateUniqueId('test-workflow')
+    work1Id = generateUniqueId('work-1')
+    work2Id = generateUniqueId('work-2')
+
     workflow = new Workflow<number>({
-      id: 'test-workflow',
+      id: workflowId,
       name: 'Test Workflow',
       description: 'A test workflow'
     })
 
     step1 = new Step({
-      id: 'step-1',
+      id: generateUniqueId('step-1'),
       name: 'String Step',
       run: async (input: number) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
@@ -25,7 +35,7 @@ describe('Workflow', () => {
     })
 
     step2 = new Step({
-      id: 'step-2',
+      id: generateUniqueId('step-2'),
       name: 'Number Step',
       run: async (input: number) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
@@ -34,12 +44,12 @@ describe('Workflow', () => {
     })
 
     work1 = new Work<number, string>({
-      id: 'work-1',
+      id: work1Id,
       name: 'String Work'
     })
 
     work2 = new Work<number, number>({
-      id: 'work-2',
+      id: work2Id,
       name: 'Number Work'
     })
 
@@ -49,7 +59,7 @@ describe('Workflow', () => {
 
   describe('构造函数', () => {
     it('应该正确初始化Workflow', () => {
-      expect(workflow.id).toBe('test-workflow')
+      expect(workflow.id).toBe(workflowId)
       expect(workflow.name).toBe('Test Workflow')
       expect(workflow.description).toBe('A test workflow')
       expect(workflow.type).toBe('workflow')
@@ -106,7 +116,7 @@ describe('Workflow', () => {
       const workflowSnapshot = await workflow.run(42)
 
       // 验证返回的是WorkflowSnapshot
-      expect(workflowSnapshot.id).toBe('test-workflow')
+      expect(workflowSnapshot.id).toBe(workflowId)
       expect(workflowSnapshot.type).toBe('workflow')
       expect(workflowSnapshot.status).toBe(STATUS.SUCCESS)
       expect(workflowSnapshot.input).toBe(42)
@@ -117,13 +127,13 @@ describe('Workflow', () => {
 
       // 验证第一个Work的结果
       const work1Result = workflowSnapshot.output![0]
-      expect(work1Result.id).toBe('work-1')
+      expect(work1Result.id).toBe(work1Id)
       expect(work1Result.type).toBe('work')
       expect(work1Result.output).toBe('Result: 42')
 
       // 验证第二个Work的结果
       const work2Result = workflowSnapshot.output![1]
-      expect(work2Result.id).toBe('work-2')
+      expect(work2Result.id).toBe(work2Id)
       expect(work2Result.type).toBe('work')
       expect(work2Result.output).toBe(84)
 
@@ -145,17 +155,22 @@ describe('Workflow', () => {
       expect(emptyWorkflow.status).toBe(STATUS.SUCCESS)
     })
 
-    it('应该在已经运行的Workflow上抛出错误', async () => {
+    it('应该在重复运行时返回快照', async () => {
       workflow.add(work1)
-      await workflow.run(42)
+      const snapshot1 = await workflow.run(42)
 
-      await expect(workflow.run(50)).rejects.toThrow('Workflow is already started')
+      // 重复运行应该返回相同的快照
+      const snapshot2 = await workflow.run(50)
+
+      expect(snapshot1).toEqual(snapshot2)
+      expect(snapshot2.status).toBe(STATUS.SUCCESS)
+      expect(snapshot2.input).toBe(42) // 保持原始输入
     })
 
     it('应该处理Work执行失败的情况', async () => {
-      const failingWork = new Work({ id: 'failing-work' })
+      const failingWork = new Work({ id: generateUniqueId('failing-work') })
       const failingStep = new Step({
-        id: 'failing-step',
+        id: generateUniqueId('failing-step'),
         run: async () => {
           throw new Error('Work failed')
         }
@@ -164,20 +179,26 @@ describe('Workflow', () => {
       failingWork.add(failingStep)
       workflow.add(failingWork)
 
+      // 第一次运行会失败
       await expect(workflow.run(42)).rejects.toThrow('Work failed')
       expect(workflow.status).toBe(STATUS.FAILED)
+
+      // 第二次运行返回失败状态的快照
+      const snapshot = await workflow.run(42)
+      expect(snapshot.status).toBe(STATUS.FAILED)
+      expect(snapshot.input).toBe(42)
     })
 
     it('应该处理部分Work失败的情况', async () => {
-      const successWork = new Work({ id: 'success-work' })
+      const successWork = new Work({ id: generateUniqueId('success-work') })
       const successStep = new Step({
-        id: 'success-step',
+        id: generateUniqueId('success-step'),
         run: async (input: number) => ({ success: true, data: input.toString() })
       })
 
-      const failingWork = new Work({ id: 'failing-work' })
+      const failingWork = new Work({ id: generateUniqueId('failing-work') })
       const failingStep = new Step({
-        id: 'failing-step',
+        id: generateUniqueId('failing-step'),
         run: async () => {
           throw new Error('This work failed')
         }
@@ -188,14 +209,26 @@ describe('Workflow', () => {
 
       workflow.add(successWork).add(failingWork)
 
+      // 第一次运行会失败
       await expect(workflow.run(42)).rejects.toThrow('This work failed')
       expect(workflow.status).toBe(STATUS.FAILED)
+
+      // 第二次运行返回失败状态的快照
+      const snapshot = await workflow.run(42)
+      expect(snapshot.status).toBe(STATUS.FAILED)
+      expect(snapshot.input).toBe(42)
     })
   })
 
   describe('暂停和继续', () => {
     it('应该能够暂停和继续Workflow', async () => {
-      // 使用更简单的暂停测试避免复杂的时序问题
+      // 创建独立的 workflow 实例避免状态污染
+      const pauseWorkflow = new Workflow({
+        id: 'pause-workflow',
+        name: 'Pause Workflow',
+        description: 'A pausable workflow'
+      })
+
       const work = new Work({ id: 'simple-work' })
       const step = new Step({
         id: 'simple-step',
@@ -205,31 +238,33 @@ describe('Workflow', () => {
       })
 
       work.add(step)
-      workflow.add(work)
+      pauseWorkflow.add(work)
 
       // 测试基本的暂停和继续功能
-      const pauseSnapshot = await workflow.pause()
+      const pauseSnapshot = await pauseWorkflow.pause()
       expect(pauseSnapshot.status).toBe(STATUS.PENDING) // Workflow未运行时暂停返回当前状态
 
-      const resumeSnapshot = await workflow.resume()
+      const resumeSnapshot = await pauseWorkflow.resume()
       expect(resumeSnapshot.status).toBe(STATUS.PENDING) // 未暂停时继续返回当前状态
 
       // 正常执行工作流
-      const workflowSnapshot = await workflow.run(42)
+      const workflowSnapshot = await pauseWorkflow.run(42)
       expect(workflowSnapshot.type).toBe('workflow')
       expect(workflowSnapshot.status).toBe(STATUS.SUCCESS)
       expect(Array.isArray(workflowSnapshot.output)).toBe(true)
       expect(workflowSnapshot.output).toHaveLength(1)
-      expect(workflow.status).toBe(STATUS.SUCCESS)
+      expect(pauseWorkflow.status).toBe(STATUS.SUCCESS)
     }, 1000)
 
     it('应该在非运行状态下暂停时返回当前快照', async () => {
-      const snapshot = await workflow.pause()
+      const testWorkflow = new Workflow({ id: 'pause-test-workflow' })
+      const snapshot = await testWorkflow.pause()
       expect(snapshot.status).toBe(STATUS.PENDING)
     })
 
     it('应该在非暂停状态下继续时返回当前快照', async () => {
-      const snapshot = await workflow.resume()
+      const testWorkflow = new Workflow({ id: 'resume-test-workflow' })
+      const snapshot = await testWorkflow.resume()
       expect(snapshot.status).toBe(STATUS.PENDING)
     })
   })
@@ -287,14 +322,14 @@ describe('Workflow', () => {
       await workflow.run(42)
 
       const snapshot = workflow.getSnapshot()
-      expect(snapshot.id).toBe('test-workflow')
+      expect(snapshot.id).toBe(workflowId)
       expect(snapshot.name).toBe('Test Workflow')
       expect(snapshot.type).toBe('workflow')
       expect(snapshot.status).toBe(STATUS.SUCCESS)
       expect(snapshot.input).toBe(42)
       expect(snapshot.works).toHaveLength(2)
-      expect(snapshot.works[0].id).toBe('work-1')
-      expect(snapshot.works[1].id).toBe('work-2')
+      expect(snapshot.works[0].id).toBe(work1Id)
+      expect(snapshot.works[1].id).toBe(work2Id)
       expect(Array.isArray(snapshot.output)).toBe(true)
     })
 
@@ -304,7 +339,7 @@ describe('Workflow', () => {
 
       const snapshot = workflow.getSnapshot()
       expect(snapshot).toBeDefined()
-      expect(snapshot.id).toBe('test-workflow')
+      expect(snapshot.id).toBe(workflowId)
       expect(snapshot.input).toBe(100)
       expect(snapshot.status).toBe(STATUS.SUCCESS)
     })
@@ -347,7 +382,7 @@ describe('Workflow', () => {
       // 创建一个包含多步骤Work的Workflow
       const complexWorkflow = new Workflow<string>()
 
-      const multiStepWork = new Work<string, string>({ id: 'multi-step-work' })
+      const multiStepWork = new Work<string, string>({ id: generateUniqueId('multi-step-work') })
 
       const step1 = new Step({
         id: 'transform-step-1',
@@ -408,7 +443,7 @@ describe('Workflow', () => {
     })
 
     it('应该正确处理空Workflow', async () => {
-      const emptyWorkflow = new Workflow<any>()
+      const emptyWorkflow = new Workflow<any>({ id: generateUniqueId('empty-workflow') })
 
       const workflowSnapshot = await emptyWorkflow.run('any-input')
 
