@@ -4,6 +4,54 @@ import { MemoryStorage, Storage } from './MemoryStorage'
 // 创建全局共享的 MemoryStorage 实例
 const memoryStorage = new MemoryStorage()
 
+export const WORKFLOW_EVENT = {
+  START: 'workflow:start',
+  SUCCESS: 'workflow:success',
+  FAILED: 'workflow:failed',
+  PAUSE: 'workflow:pause',
+  RESUME: 'workflow:resume'
+} as const
+
+export const WORK_EVENT = {
+  START: 'work:start',
+  SUCCESS: 'work:success',
+  FAILED: 'work:failed',
+  PAUSE: 'work:pause',
+  RESUME: 'work:resume'
+} as const
+
+export const STEP_EVENT = {
+  START: 'step:start',
+  SUCCESS: 'step:success',
+  FAILED: 'step:failed',
+  PAUSE: 'step:pause',
+  RESUME: 'step:resume'
+} as const
+
+export type StepEventMap = {
+  [STEP_EVENT.START]: (snapshot: StepSnapshot) => void
+  [STEP_EVENT.SUCCESS]: (snapshot: StepSnapshot) => void
+  [STEP_EVENT.FAILED]: (error: Error) => void
+  [STEP_EVENT.PAUSE]: (snapshot: StepSnapshot) => void
+  [STEP_EVENT.RESUME]: (snapshot: StepSnapshot) => void
+}
+
+export type WorkEventMap = {
+  [WORK_EVENT.START]: (snapshot: WorkSnapshot) => void
+  [WORK_EVENT.SUCCESS]: (snapshot: WorkSnapshot) => void
+  [WORK_EVENT.FAILED]: (error: Error) => void
+  [WORK_EVENT.PAUSE]: (snapshot: WorkSnapshot) => void
+  [WORK_EVENT.RESUME]: (snapshot: WorkSnapshot) => void
+} & StepEventMap
+
+export type WorkflowEventMap = {
+  [WORKFLOW_EVENT.START]: (snapshot: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.SUCCESS]: (snapshot: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.FAILED]: (error: Error) => void
+  [WORKFLOW_EVENT.PAUSE]: (snapshot: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.RESUME]: (snapshot: WorkflowSnapshot) => void
+} & WorkEventMap
+
 export const STATUS = {
   PENDING: 'pending',
   RUNNING: 'running',
@@ -181,13 +229,13 @@ class Workflow<I = any> {
   readonly isComputed: boolean = false
   status: WorkflowStatus = STATUS.PENDING
   works: Work<I, any>[] = []
-  private eventHub: EventHub
+  private eventHub: EventHub<WorkflowEventMap>
   private storage: Storage
   private snapshot: Snapshot<this>
   input?: I
   output?: WorkSnapshot[]
   constructor(options?: WorkflowOptions) {
-    this.eventHub = new EventHub()
+    this.eventHub = new EventHub<WorkflowEventMap>()
     this.storage = options?.storage ?? memoryStorage
     this.snapshot = new Snapshot(this, this.storage)
     this.id = options?.id ?? `workflow-${Date.now()}`
@@ -214,45 +262,45 @@ class Workflow<I = any> {
   // 添加 Work 到工作流
   add(work: Work<I, any>): Workflow<I> {
     this.works.push(work)
-    work.on('work:start', (snapshot) => {
+    work.on(WORK_EVENT.START, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:start', snapshot)
+      this.eventHub.emit(WORK_EVENT.START, snapshot)
     })
-    work.on('work:pause', (snapshot) => {
+    work.on(WORK_EVENT.PAUSE, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:pause', snapshot)
+      this.eventHub.emit(WORK_EVENT.PAUSE, snapshot)
     })
-    work.on('work:resume', (snapshot) => {
+    work.on(WORK_EVENT.RESUME, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:resume', snapshot)
+      this.eventHub.emit(WORK_EVENT.RESUME, snapshot)
     })
-    work.on('work:success', (snapshot) => {
+    work.on(WORK_EVENT.SUCCESS, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:success', snapshot)
+      this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
     })
-    work.on('work:failed', (error) => {
+    work.on(WORK_EVENT.FAILED, (error) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:error', error)
+      this.eventHub.emit(WORK_EVENT.FAILED, error)
     })
-    work.on('step:start', (snapshot) => {
+    work.on(STEP_EVENT.START, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:start', snapshot)
+      this.eventHub.emit(STEP_EVENT.START, snapshot)
     })
-    work.on('step:pause', (snapshot) => {
+    work.on(STEP_EVENT.PAUSE, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:pause', snapshot)
+      this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
     })
-    work.on('step:resume', (snapshot) => {
+    work.on(STEP_EVENT.RESUME, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:resume', snapshot)
+      this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
     })
-    work.on('step:success', (snapshot) => {
+    work.on(STEP_EVENT.SUCCESS, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:success', snapshot)
+      this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
     })
-    work.on('step:failed', (snapshot) => {
+    work.on(STEP_EVENT.FAILED, (snapshot) => {
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:failed', snapshot)
+      this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
     })
     return this
   }
@@ -274,7 +322,7 @@ class Workflow<I = any> {
 
       const snapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('workflow:start', snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.START, snapshot)
 
       // 并行执行所有 works，每个 work 返回 WorkSnapshot
       const workSnapshots = await Promise.all(this.works.map((work) => work.run(input)))
@@ -283,12 +331,12 @@ class Workflow<I = any> {
 
       const finalSnapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('workflow:success', finalSnapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.SUCCESS, finalSnapshot)
       return finalSnapshot
     } catch (error) {
       this.status = STATUS.FAILED
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('workflow:failed', this.snapshot.captureSnapshot())
+      this.eventHub.emit(WORKFLOW_EVENT.FAILED, error as Error)
       throw error
     }
   }
@@ -303,7 +351,7 @@ class Workflow<I = any> {
     await Promise.all(this.works.map((work) => work.pause()))
     const snapshot = this.snapshot.captureSnapshot()
     this.snapshot.saveSnapshot() // 保存快照
-    this.eventHub.emit('workflow:pause', snapshot)
+    this.eventHub.emit(WORKFLOW_EVENT.PAUSE, snapshot)
     return snapshot
   }
 
@@ -317,12 +365,16 @@ class Workflow<I = any> {
     await Promise.all(this.works.map((work) => work.resume()))
     const snapshot = this.snapshot.captureSnapshot()
     this.snapshot.saveSnapshot()
-    this.eventHub.emit('workflow:resume', snapshot)
+    this.eventHub.emit(WORKFLOW_EVENT.RESUME, snapshot)
     return snapshot
   }
 
-  on(event: string, listener: (...args: any[]) => void) {
+  on<K extends keyof WorkflowEventMap>(event: K, listener: WorkflowEventMap[K]) {
     this.eventHub.on(event, listener)
+  }
+
+  off<K extends keyof WorkflowEventMap>(event: K, listener: WorkflowEventMap[K]) {
+    this.eventHub.off(event, listener)
   }
 
   // 公共快照访问方法
@@ -345,7 +397,7 @@ class Work<I = any, O = WorkUninitialized> {
   input?: I
   output?: O extends WorkUninitialized ? undefined : O
   error?: string
-  private eventHub: EventHub
+  private eventHub: EventHub<WorkEventMap>
   private storage: Storage
   private snapshot: Snapshot<this>
 
@@ -353,7 +405,7 @@ class Work<I = any, O = WorkUninitialized> {
     this.id = options.id
     this.name = options.name
     this.description = options.description
-    this.eventHub = new EventHub()
+    this.eventHub = new EventHub<WorkEventMap>()
     this.storage = options?.storage ?? memoryStorage
     this.snapshot = new Snapshot(this, this.storage)
   }
@@ -389,35 +441,35 @@ class Work<I = any, O = WorkUninitialized> {
   add(step: Step<any, any>): any {
     this.steps.push(step)
 
-    step.on('step:start', async (snapshot) => {
-      this.eventHub.emit('step:start', snapshot)
+    step.on(STEP_EVENT.START, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.START, snapshot)
     })
 
-    step.on('step:pause', async (snapshot) => {
-      this.eventHub.emit('step:pause', snapshot)
+    step.on(STEP_EVENT.PAUSE, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
       if (this.status !== STATUS.PAUSED) {
         this.status = STATUS.PAUSED
-        this.eventHub.emit('work:pause', this.snapshot.captureSnapshot())
+        this.eventHub.emit(WORK_EVENT.PAUSE, this.snapshot.captureSnapshot())
       }
     })
 
-    step.on('step:resume', async (snapshot) => {
-      this.eventHub.emit('step:resume', snapshot)
+    step.on(STEP_EVENT.RESUME, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
       if (this.status !== STATUS.RUNNING) {
         this.status = STATUS.RUNNING
-        this.eventHub.emit('work:resume', this.snapshot.captureSnapshot())
+        this.eventHub.emit(WORK_EVENT.RESUME, this.snapshot.captureSnapshot())
       }
     })
 
-    step.on('step:success', async (snapshot) => {
-      this.eventHub.emit('step:success', snapshot)
+    step.on(STEP_EVENT.SUCCESS, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
     })
 
-    step.on('step:failed', async (snapshot) => {
-      this.eventHub.emit('step:failed', snapshot)
+    step.on(STEP_EVENT.FAILED, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       if (this.status !== STATUS.FAILED) {
         this.status = STATUS.FAILED
-        this.eventHub.emit('work:failed', this.snapshot.captureSnapshot())
+        this.eventHub.emit(WORK_EVENT.FAILED, new Error('Step failed'))
       }
     })
 
@@ -440,7 +492,7 @@ class Work<I = any, O = WorkUninitialized> {
       this.status = STATUS.RUNNING
       const snapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:start', snapshot)
+      this.eventHub.emit(WORK_EVENT.START, snapshot)
 
       // 串行执行步骤链
       let currentInput = input
@@ -454,13 +506,13 @@ class Work<I = any, O = WorkUninitialized> {
 
       const finalSnapshot = this.snapshot.captureSnapshot() as WorkSnapshot<I, O>
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:success', finalSnapshot)
+      this.eventHub.emit(WORK_EVENT.SUCCESS, finalSnapshot)
       return finalSnapshot
     } catch (error) {
       this.status = STATUS.FAILED
-      this.error = error instanceof Error ? error.message : String(error)
+      this.error = (error as Error).message
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:failed', error)
+      this.eventHub.emit(WORK_EVENT.FAILED, error as Error)
       throw error
     }
   }
@@ -475,12 +527,12 @@ class Work<I = any, O = WorkUninitialized> {
       await Promise.all(this.steps.map((step) => step.pause()))
       const snapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot() // 保存快照
-      this.eventHub.emit('work:pause', snapshot)
+      this.eventHub.emit(WORK_EVENT.PAUSE, snapshot)
       return snapshot
     } catch (error) {
       this.status = STATUS.FAILED
-      this.error = error instanceof Error ? error.message : String(error)
-      this.eventHub.emit('work:failed', error)
+      this.error = (error as Error).message
+      this.eventHub.emit(WORK_EVENT.FAILED, error as Error)
       throw error
     }
   }
@@ -495,18 +547,22 @@ class Work<I = any, O = WorkUninitialized> {
       await Promise.all(this.steps.map((step) => step.resume()))
       const snapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:resume', snapshot)
+      this.eventHub.emit(WORK_EVENT.RESUME, snapshot)
       return snapshot
     } catch (error) {
       this.status = STATUS.FAILED
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('work:failed', error)
+      this.eventHub.emit(WORK_EVENT.FAILED, error as Error)
       throw error
     }
   }
 
-  on(event: string, listener: (...args: any[]) => void) {
+  on<K extends keyof WorkEventMap>(event: K, listener: WorkEventMap[K]) {
     this.eventHub.on(event, listener)
+  }
+
+  off<K extends keyof WorkEventMap>(event: K, listener: WorkEventMap[K]) {
+    this.eventHub.off(event, listener)
   }
 
   // 公共快照访问方法
@@ -529,7 +585,7 @@ class Step<I = any, O = any> {
   readonly runComputed: boolean = false
   input?: I
   output?: O // 存储原始数据
-  private eventHub: EventHub
+  private eventHub: EventHub<StepEventMap>
   storage: Storage
   private snapshot: Snapshot<this>
   private pauseResolvers?: PromiseWithResolvers<void>
@@ -539,7 +595,7 @@ class Step<I = any, O = any> {
     this.id = options.id
     this.name = options.name
     this.description = options.description
-    this.eventHub = new EventHub()
+    this.eventHub = new EventHub<StepEventMap>()
     this.storage = options?.storage ?? memoryStorage
     this.snapshot = new Snapshot(this, this.storage)
     this._run = options.run
@@ -595,7 +651,7 @@ class Step<I = any, O = any> {
       // 创建快照并返回
       const finalSnapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:success', finalSnapshot)
+      this.eventHub.emit(STEP_EVENT.SUCCESS, finalSnapshot)
 
       // 检查是否在完成前被暂停
       if (this.pauseResolvers) {
@@ -606,7 +662,7 @@ class Step<I = any, O = any> {
     } catch (error) {
       this.status = STATUS.FAILED
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:failed', error)
+      this.eventHub.emit(STEP_EVENT.FAILED, error as Error)
       throw error
     }
   }
@@ -620,11 +676,11 @@ class Step<I = any, O = any> {
       this.pauseResolvers = Promise.withResolvers<void>()
       const snapshot = this.snapshot.captureSnapshot()
       this.snapshot.saveSnapshot() // 保存快照
-      this.eventHub.emit('step:pause', snapshot)
+      this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
       return snapshot
     } catch (error) {
       this.status = STATUS.FAILED
-      this.eventHub.emit('step:failed', error)
+      this.eventHub.emit(STEP_EVENT.FAILED, error as Error)
       throw error
     }
   }
@@ -637,7 +693,7 @@ class Step<I = any, O = any> {
         this.pauseResolvers?.resolve()
         const snapshot = this.snapshot.captureSnapshot()
         this.snapshot.saveSnapshot()
-        this.eventHub.emit('step:resume', snapshot)
+        this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
         return snapshot
       }
       const snapshot = this.snapshot.captureSnapshot()
@@ -645,16 +701,16 @@ class Step<I = any, O = any> {
     } catch (error) {
       this.status = STATUS.FAILED
       this.snapshot.saveSnapshot()
-      this.eventHub.emit('step:failed', error)
+      this.eventHub.emit(STEP_EVENT.FAILED, error as Error)
       throw error
     }
   }
 
-  on(event: string, listener: (...args: any[]) => void) {
+  on<K extends keyof StepEventMap>(event: K, listener: StepEventMap[K]) {
     this.eventHub.on(event, listener)
   }
 
-  off(event?: string, listener?: (...args: any[]) => void) {
+  off<K extends keyof StepEventMap>(event: K, listener: StepEventMap[K]) {
     this.eventHub.off(event, listener)
   }
 
