@@ -206,6 +206,7 @@ export class Workflow {
   add(work: Work) {
     work.storage ??= this.storage
     this.works.push(work)
+    this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.snapshot.capture())
 
     work.on(WORK_EVENT.START, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.START, snapshot)
@@ -376,6 +377,8 @@ export class Work {
   add(step: Step) {
     step.storage ??= this.storage
     this.steps.push(step)
+
+    this.eventHub.emit(WORK_EVENT.CHANGE, this.snapshot.capture())
 
     step.on(STEP_EVENT.START, async (snapshot) => {
       this.eventHub.emit(STEP_EVENT.START, snapshot)
