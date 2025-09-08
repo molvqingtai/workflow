@@ -9,7 +9,8 @@ export const WORKFLOW_EVENT = {
   FAILED: 'workflow:failed',
   PAUSE: 'workflow:pause',
   RESUME: 'workflow:resume',
-  PRELOAD: 'workflow:preload'
+  PRELOAD: 'workflow:preload',
+  CHANGE: 'workflow:change'
 } as const
 
 export const WORK_EVENT = {
@@ -18,7 +19,8 @@ export const WORK_EVENT = {
   FAILED: 'work:failed',
   PAUSE: 'work:pause',
   RESUME: 'work:resume',
-  PRELOAD: 'work:preload'
+  PRELOAD: 'work:preload',
+  CHANGE: 'work:change'
 } as const
 
 export const STEP_EVENT = {
@@ -27,7 +29,8 @@ export const STEP_EVENT = {
   FAILED: 'step:failed',
   PAUSE: 'step:pause',
   RESUME: 'step:resume',
-  PRELOAD: 'step:preload'
+  PRELOAD: 'step:preload',
+  CHANGE: 'step:change'
 } as const
 
 export type StepEventMap = {
@@ -37,6 +40,7 @@ export type StepEventMap = {
   [STEP_EVENT.PAUSE]: (snapshot: StepSnapshot) => void
   [STEP_EVENT.RESUME]: (snapshot: StepSnapshot) => void
   [STEP_EVENT.PRELOAD]: (snapshot?: StepSnapshot) => void
+  [STEP_EVENT.CHANGE]: (snapshot: StepSnapshot) => void
 }
 
 export type WorkEventMap = {
@@ -46,6 +50,7 @@ export type WorkEventMap = {
   [WORK_EVENT.PAUSE]: (snapshot: WorkSnapshot) => void
   [WORK_EVENT.RESUME]: (snapshot: WorkSnapshot) => void
   [WORK_EVENT.PRELOAD]: (snapshot?: WorkSnapshot) => void
+  [WORK_EVENT.CHANGE]: (snapshot: WorkSnapshot) => void
 } & StepEventMap
 
 export type WorkflowEventMap = {
@@ -55,6 +60,7 @@ export type WorkflowEventMap = {
   [WORKFLOW_EVENT.PAUSE]: (snapshot: WorkflowSnapshot) => void
   [WORKFLOW_EVENT.RESUME]: (snapshot: WorkflowSnapshot) => void
   [WORKFLOW_EVENT.PRELOAD]: (snapshot?: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.CHANGE]: (snapshot: WorkflowSnapshot) => void
 } & WorkEventMap
 
 export const STATUS = {
@@ -126,6 +132,7 @@ export class Workflow {
     this.preloadPromise = this.snapshot.restore().then((res) => {
       const snapshot = res?.snapshot?.capture()
       this.eventHub.emit(WORKFLOW_EVENT.PRELOAD, snapshot)
+      snapshot && this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
     })
     return this
   }
@@ -138,15 +145,21 @@ export class Workflow {
       }
       this.input = input
       this.status = STATUS.RUNNING
-      this.eventHub.emit(WORKFLOW_EVENT.START, await this.snapshot.save())
+      let snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.START, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       this.output = await Promise.all(this.works.map((work) => work.run(input, { workflow: this })))
       this.status = STATUS.SUCCESS
-      this.eventHub.emit(WORKFLOW_EVENT.SUCCESS, await this.snapshot.save())
+      snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.SUCCESS, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(WORKFLOW_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -157,12 +170,16 @@ export class Workflow {
       }
       this.status = STATUS.PAUSED
       await Promise.all(this.works.map((work) => work.pause()))
-      this.eventHub.emit(WORKFLOW_EVENT.PAUSE, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.PAUSE, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(WORKFLOW_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -173,12 +190,16 @@ export class Workflow {
       }
       this.status = STATUS.RUNNING
       await Promise.all(this.works.map((work) => work.resume()))
-      this.eventHub.emit(WORKFLOW_EVENT.RESUME, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.RESUME, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(WORKFLOW_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORKFLOW_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -188,6 +209,7 @@ export class Workflow {
 
     work.on(WORK_EVENT.START, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.START, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
     })
 
     work.on(WORK_EVENT.PAUSE, async (snapshot) => {
@@ -195,7 +217,9 @@ export class Workflow {
       if (this.status === STATUS.PAUSED) return
       if (this.works.every((work) => work.status === STATUS.PAUSED)) {
         this.status = STATUS.PAUSED
-        this.eventHub.emit(WORKFLOW_EVENT.PAUSE, await this.snapshot.save())
+        const workflowSnapshot = await this.snapshot.save()
+        this.eventHub.emit(WORKFLOW_EVENT.PAUSE, workflowSnapshot)
+        this.eventHub.emit(WORKFLOW_EVENT.CHANGE, workflowSnapshot)
       }
     })
     work.on(WORK_EVENT.RESUME, async (snapshot) => {
@@ -203,22 +227,27 @@ export class Workflow {
       if (this.status === STATUS.RUNNING) return
       if (this.works.every((work) => work.status === STATUS.RUNNING)) {
         this.status = STATUS.RUNNING
-        this.eventHub.emit(WORKFLOW_EVENT.RESUME, await this.snapshot.save())
+        const workflowSnapshot = await this.snapshot.save()
+        this.eventHub.emit(WORKFLOW_EVENT.RESUME, workflowSnapshot)
+        this.eventHub.emit(WORKFLOW_EVENT.CHANGE, workflowSnapshot)
       }
     })
     work.on(WORK_EVENT.SUCCESS, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
     })
-    work.on(WORK_EVENT.FAILED, (error) => {
-      this.eventHub.emit(WORK_EVENT.FAILED, error)
+    work.on(WORK_EVENT.FAILED, (snapshot) => {
+      this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
+    })
+    work.on(WORK_EVENT.CHANGE, (snapshot) => {
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
     })
     work.on(STEP_EVENT.START, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.START, snapshot)
     })
-    work.on(STEP_EVENT.PAUSE, async (snapshot) => {
+    work.on(STEP_EVENT.PAUSE, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
     })
-    work.on(STEP_EVENT.RESUME, async (snapshot) => {
+    work.on(STEP_EVENT.RESUME, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
     })
     work.on(STEP_EVENT.SUCCESS, (snapshot) => {
@@ -226,6 +255,9 @@ export class Workflow {
     })
     work.on(STEP_EVENT.FAILED, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
+    })
+    work.on(STEP_EVENT.CHANGE, (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
     })
     return this
   }
@@ -264,6 +296,7 @@ export class Work {
     this.preloadPromise = this.snapshot.restore().then((res) => {
       const snapshot = res?.snapshot?.capture()
       this.eventHub.emit(WORK_EVENT.PRELOAD, snapshot)
+      snapshot && this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
     })
     return this
   }
@@ -275,7 +308,9 @@ export class Work {
       }
       this.input = input
       this.status = STATUS.RUNNING
-      this.eventHub.emit(WORK_EVENT.START, await this.snapshot.save())
+      let snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.START, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       let currentInput = input
       for (const step of this.steps) {
         const res = await step.run(currentInput, { ...context, work: this })
@@ -283,12 +318,16 @@ export class Work {
       }
       this.status = STATUS.SUCCESS
       this.output = currentInput
-      this.eventHub.emit(WORK_EVENT.SUCCESS, await this.snapshot.save())
+      snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(WORK_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -299,12 +338,16 @@ export class Work {
       }
       this.status = STATUS.PAUSED
       await Promise.all(this.steps.map((step) => step.pause()))
-      this.eventHub.emit(WORK_EVENT.PAUSE, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.PAUSE, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(WORK_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -316,12 +359,16 @@ export class Work {
       }
       this.status = STATUS.RUNNING
       await Promise.all(this.steps.map((step) => step.resume()))
-      this.eventHub.emit(WORK_EVENT.RESUME, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.RESUME, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(WORK_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -335,7 +382,9 @@ export class Work {
 
       if (this.status === STATUS.RUNNING) return
       this.status = STATUS.RUNNING
-      this.eventHub.emit(WORK_EVENT.START, await this.snapshot.save())
+      const workSnapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.START, workSnapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
     step.on(STEP_EVENT.PAUSE, async (snapshot) => {
@@ -343,7 +392,9 @@ export class Work {
 
       if (this.status === STATUS.PAUSED) return
       this.status = STATUS.PAUSED
-      this.eventHub.emit(WORK_EVENT.PAUSE, await this.snapshot.save())
+      const workSnapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.PAUSE, workSnapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
     step.on(STEP_EVENT.RESUME, async (snapshot) => {
@@ -351,7 +402,9 @@ export class Work {
 
       if (this.status === STATUS.RUNNING) return
       this.status = STATUS.RUNNING
-      this.eventHub.emit(WORK_EVENT.RESUME, await this.snapshot.save())
+      const workSnapshot = await this.snapshot.save()
+      this.eventHub.emit(WORK_EVENT.RESUME, workSnapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
     step.on(STEP_EVENT.SUCCESS, async (snapshot) => {
@@ -360,6 +413,10 @@ export class Work {
 
     step.on(STEP_EVENT.FAILED, async (snapshot) => {
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
+    })
+
+    step.on(STEP_EVENT.CHANGE, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
     })
     return this
   }
@@ -400,6 +457,7 @@ export class Step {
     this.preloadPromise = this.snapshot.restore().then((res) => {
       const snapshot = res?.snapshot?.capture()
       this.eventHub.emit(STEP_EVENT.PRELOAD, snapshot)
+      snapshot && this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
     })
     return this
   }
@@ -411,18 +469,21 @@ export class Step {
       }
       this.input = input
       this.status = STATUS.RUNNING
-      this.eventHub.emit(STEP_EVENT.START, await this.snapshot.save())
+      let snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.START, snapshot)
       await this.pauseResolvers?.promise
       const output = await this._run(input, context)
       await this.pauseResolvers?.promise
       this.output = output
       this.status = STATUS.SUCCESS
-      this.eventHub.emit(STEP_EVENT.SUCCESS, await this.snapshot.save())
+      snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(STEP_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       throw error
     }
   }
@@ -434,12 +495,14 @@ export class Step {
       }
       this.status = STATUS.PAUSED
       this.pauseResolvers = Promise.withResolvers<void>()
-      this.eventHub.emit(STEP_EVENT.PAUSE, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(STEP_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       throw error
     }
   }
@@ -450,12 +513,15 @@ export class Step {
       }
       this.pauseResolvers?.resolve()
       this.status = STATUS.RUNNING
-      this.eventHub.emit(STEP_EVENT.RESUME, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = STATUS.FAILED
       this.error = (error as Error).message
-      this.eventHub.emit(STEP_EVENT.FAILED, await this.snapshot.save())
+      const snapshot = await this.snapshot.save()
+      this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       throw error
     }
   }
