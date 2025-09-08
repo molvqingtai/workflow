@@ -1,7 +1,7 @@
-import type { WorkflowSnapshot, WorkSnapshot, StepSnapshot } from './index'
+import type { WorkflowSnapshot, WorkSnapshot, StepSnapshot } from './Snapshot'
 
 // 所有快照类型的联合类型
-type AnySnapshot = WorkflowSnapshot<any, any> | WorkSnapshot<any, any> | StepSnapshot<any, any>
+type AnySnapshot = WorkflowSnapshot | WorkSnapshot | StepSnapshot
 
 // Storage interface
 export interface Storage {
