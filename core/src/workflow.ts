@@ -1,4 +1,5 @@
 import EventHub from './EventHub'
+import uuid from './utils/uuid'
 
 export const RUN_STATUS = {
   PENDING: 'pending',
@@ -104,7 +105,7 @@ export type WorkflowEventMap = {
 } & WorkEventMap
 
 export interface WorkflowOptions {
-  id: string
+  id?: string
   name?: string
   description?: string
   status?: RunStatus
@@ -115,7 +116,7 @@ export interface WorkflowOptions {
 }
 
 export interface WorkOptions {
-  id: string
+  id?: string
   name?: string
   description?: string
   status?: RunStatus
@@ -126,7 +127,7 @@ export interface WorkOptions {
 }
 
 export interface StepOptions {
-  id: string
+  id?: string
   name?: string
   description?: string
   status?: RunStatus
@@ -147,8 +148,7 @@ export interface StepContext {
 
 export class Workflow {
   id: string
-  type = 'workflow'
-
+  readonly type = 'workflow'
   name?: string
   description?: string
   input: any
@@ -158,15 +158,15 @@ export class Workflow {
   readonly works: Work[] = []
   private eventHub: EventHub<WorkflowEventMap>
   private preloadPromise?: Promise<void>
-  constructor(options: WorkflowOptions) {
-    this.id = options.id
-    this.name = options.name
-    this.description = options.description
-    this.status = options.status ?? RUN_STATUS.PENDING
-    this.input = options.input
-    this.output = options.output
-    this.error = options.error
-    this.works = options.works
+  constructor(options?: WorkflowOptions) {
+    this.id = options?.id ?? uuid()
+    this.name = options?.name
+    this.description = options?.description
+    this.status = options?.status ?? RUN_STATUS.PENDING
+    this.input = options?.input
+    this.output = options?.output
+    this.error = options?.error
+    this.works = options?.works || []
 
     this.eventHub = new EventHub<WorkflowEventMap>()
 
@@ -231,7 +231,7 @@ export class Workflow {
       id: this.id,
       name: this.name,
       description: this.description,
-      type: 'workflow',
+      type: this.type,
       status: this.status,
       input: this.input,
       output: this.output,
@@ -318,7 +318,7 @@ export class Workflow {
 
 export class Work {
   id: string
-  type = 'work'
+  readonly type = 'work'
   name?: string
   description?: string
   input: any
@@ -329,15 +329,15 @@ export class Work {
   private eventHub: EventHub<WorkEventMap>
 
   private preloadPromise?: Promise<void>
-  constructor(options: WorkOptions) {
-    this.id = options.id
-    this.name = options.name
-    this.description = options.description
-    this.status = options.status ?? RUN_STATUS.PENDING
-    this.input = options.input
-    this.output = options.output
-    this.error = options.error
-    this.steps = options.steps ?? []
+  constructor(options?: WorkOptions) {
+    this.id = options?.id ?? uuid()
+    this.name = options?.name
+    this.description = options?.description
+    this.status = options?.status ?? RUN_STATUS.PENDING
+    this.input = options?.input
+    this.output = options?.output
+    this.error = options?.error
+    this.steps = options?.steps ?? []
     this.eventHub = new EventHub<WorkEventMap>()
     this.steps.forEach((step) => {
       step.on(STEP_EVENT.START, async (snapshot) => {
@@ -385,7 +385,7 @@ export class Work {
       id: this.id,
       name: this.name,
       description: this.description,
-      type: 'work',
+      type: this.type,
       status: this.status,
       input: this.input,
       output: this.output,
@@ -478,7 +478,7 @@ export class Work {
 
 export class Step {
   id: string
-  type = 'step'
+  readonly type = 'step'
   name?: string
   description?: string
   input: any
@@ -488,16 +488,16 @@ export class Step {
   private eventHub: EventHub<StepEventMap>
   private preloadPromise?: Promise<void>
   private pauseResolvers?: PromiseWithResolvers<void>
-  private _run: (input: any, context: StepContext) => Promise<any>
-  constructor(options: StepOptions) {
-    this.id = options.id
-    this.name = options.name
-    this.description = options.description
-    this.status = options.status ?? RUN_STATUS.PENDING
-    this.input = options.input
-    this.output = options.output
-    this.error = options.error
-    this._run = options.run
+  private _run?: (input: any, context: StepContext) => Promise<any>
+  constructor(options?: StepOptions) {
+    this.id = options?.id ?? uuid()
+    this.name = options?.name
+    this.description = options?.description
+    this.status = options?.status ?? RUN_STATUS.PENDING
+    this.input = options?.input
+    this.output = options?.output
+    this.error = options?.error
+    this._run = options?.run
     this.eventHub = new EventHub<StepEventMap>()
   }
 
@@ -506,7 +506,7 @@ export class Step {
       id: this.id,
       name: this.name,
       description: this.description,
-      type: 'step',
+      type: this.type,
       status: this.status,
       input: this.input,
       output: this.output,
@@ -525,7 +525,7 @@ export class Step {
       let snapshot = this.toSnapshot()
       this.eventHub.emit(STEP_EVENT.START, snapshot)
       await this.pauseResolvers?.promise
-      const output = await this._run(input, context)
+      const output = await this._run?.(input, context)
       this.output = output
       this.status = RUN_STATUS.SUCCESS
       await this.pauseResolvers?.promise
