@@ -5,7 +5,7 @@ describe('事件系统测试', () => {
   describe('Step级别事件', () => {
     it('应该正确触发Step生命周期事件', async () => {
       const events: string[] = []
-      
+
       const step = new Step({
         id: 'event-step',
         run: async (input: number, context) => {
@@ -18,7 +18,10 @@ describe('事件系统测试', () => {
       step.on('step:start', () => events.push('step:start'))
       step.on('step:success', () => events.push('step:success'))
 
-      const result = await step.run(10, { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) })
+      const result = await step.run(10, {
+        workflow: new Workflow({ id: 'dummy-workflow' }),
+        work: new Work({ id: 'dummy' })
+      })
 
       expect(events).toContain('step:start')
       expect(events).toContain('step:success')
@@ -27,7 +30,7 @@ describe('事件系统测试', () => {
 
     it('应该正确触发Step暂停恢复事件', async () => {
       const events: string[] = []
-      
+
       const step = new Step({
         id: 'pause-event-step',
         run: async (input: number, context) => {
@@ -41,7 +44,7 @@ describe('事件系统测试', () => {
 
       const context = { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) }
       const runPromise = step.run(10, context)
-      
+
       await new Promise((resolve) => setTimeout(resolve, 50))
       await step.pause()
       await step.resume()
@@ -54,7 +57,7 @@ describe('事件系统测试', () => {
     it('应该正确触发Step失败事件', async () => {
       const events: string[] = []
       const errors: any[] = []
-      
+
       const step = new Step({
         id: 'error-event-step',
         run: async (input: number, context) => {
@@ -78,7 +81,7 @@ describe('事件系统测试', () => {
   describe('Work级别事件', () => {
     it('应该正确触发Work生命周期事件', async () => {
       const events: string[] = []
-      
+
       const workflow = new Workflow({
         id: 'event-workflow'
       })
@@ -115,7 +118,7 @@ describe('事件系统测试', () => {
   describe('Workflow级别事件', () => {
     it('应该正确触发Workflow生命周期事件', async () => {
       const events: string[] = []
-      
+
       const workflow = new Workflow({
         id: 'event-workflow'
       })
@@ -154,7 +157,7 @@ describe('事件系统测试', () => {
   describe('事件数据完整性', () => {
     it('事件应该携带正确的快照数据', async () => {
       let eventSnapshot: any = null
-      
+
       const step = new Step({
         id: 'snapshot-step',
         run: async (input: number, context) => input * 2
@@ -175,7 +178,7 @@ describe('事件系统测试', () => {
 
     it('错误事件应该携带错误信息', async () => {
       let eventSnapshot: any = null
-      
+
       const step = new Step({
         id: 'error-snapshot-step',
         run: async (input: number, context) => {

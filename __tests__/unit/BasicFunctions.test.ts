@@ -4,11 +4,11 @@ import { Workflow, Work, Step } from 'workflow'
 describe('基础功能测试', () => {
   describe('正常执行流程', () => {
     it('应该能够正常执行完整的工作流', async () => {
-      const workflow = new Workflow({ 
-        id: 'test-workflow' 
+      const workflow = new Workflow({
+        id: 'test-workflow'
       })
 
-      const work = new Work({ 
+      const work = new Work({
         id: 'test-work'
       })
 
@@ -23,7 +23,7 @@ describe('基础功能测试', () => {
       workflow.add(work)
 
       const result = await workflow.run(10)
-      
+
       expect(result.status).toBe('success')
       expect(result.input).toBe(10)
       expect(result.output).toHaveLength(1)
@@ -32,11 +32,11 @@ describe('基础功能测试', () => {
     })
 
     it('应该能够执行多个Step的Work', async () => {
-      const workflow = new Workflow({ 
+      const workflow = new Workflow({
         id: 'multi-step-workflow'
       })
 
-      const work = new Work({ 
+      const work = new Work({
         id: 'multi-step-work'
       })
 
@@ -54,22 +54,22 @@ describe('基础功能测试', () => {
       workflow.add(work)
 
       const result = await workflow.run(5)
-      
+
       expect(result.status).toBe('success')
       expect(result.works[0].status).toBe('success')
       expect(result.works[0].output).toBe(12) // (5 + 1) * 2
     })
 
     it('应该能够执行多个Work的Workflow', async () => {
-      const workflow = new Workflow({ 
+      const workflow = new Workflow({
         id: 'multi-work-workflow'
       })
 
-      const work1 = new Work({ 
+      const work1 = new Work({
         id: 'work1'
       })
 
-      const work2 = new Work({ 
+      const work2 = new Work({
         id: 'work2'
       })
 
@@ -88,7 +88,7 @@ describe('基础功能测试', () => {
       workflow.add(work1).add(work2)
 
       const result = await workflow.run(5)
-      
+
       expect(result.status).toBe('success')
       expect(result.works).toHaveLength(2)
       expect(result.works[0].output).toBe(15) // 5 + 10
@@ -99,32 +99,35 @@ describe('基础功能测试', () => {
   describe('暂停和恢复功能', () => {
     it('应该能够暂停和恢复Step', async () => {
       let stepStarted = false
-      
+
       const step = new Step({
         id: 'pause-step',
         run: async (input: number, context) => {
           stepStarted = true
           // 模拟长时间运行
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 100))
           return input * 2
         }
       })
 
       // 开始执行
-      const runPromise = step.run(10, { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) })
-      
+      const runPromise = step.run(10, {
+        workflow: new Workflow({ id: 'dummy-workflow' }),
+        work: new Work({ id: 'dummy' })
+      })
+
       // 等待执行开始
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await new Promise((resolve) => setTimeout(resolve, 50))
       expect(stepStarted).toBe(true)
-      
+
       // 暂停
       const pauseResult = await step.pause()
       expect(pauseResult.status).toBe('paused')
-      
+
       // 恢复
       const resumeResult = await step.resume()
       expect(resumeResult.status).toBe('running')
-      
+
       // 等待完成
       const result = await runPromise
       expect(result.status).toBe('success')
@@ -132,18 +135,18 @@ describe('基础功能测试', () => {
     })
 
     it('应该能够暂停和恢复Work', async () => {
-      const workflow = new Workflow({ 
+      const workflow = new Workflow({
         id: 'pause-workflow'
       })
 
-      const work = new Work({ 
+      const work = new Work({
         id: 'pause-work'
       })
 
       const step = new Step({
         id: 'pause-work-step',
         run: async (input: number, context) => {
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 100))
           return input * 2
         }
       })
@@ -152,15 +155,15 @@ describe('基础功能测试', () => {
       workflow.add(work)
 
       const runPromise = workflow.run(10)
-      
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
       const pauseResult = await workflow.pause()
       expect(pauseResult.status).toBe('paused')
-      
+
       const resumeResult = await workflow.resume()
       expect(resumeResult.status).toBe('running')
-      
+
       const result = await runPromise
       expect(result.status).toBe('success')
       expect(result.works[0].output).toBe(20)
@@ -176,17 +179,19 @@ describe('基础功能测试', () => {
         }
       })
 
-      await expect(step.run(10, { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) })).rejects.toThrow('Step execution failed')
-      
+      await expect(
+        step.run(10, { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) })
+      ).rejects.toThrow('Step execution failed')
+
       expect(step.status).toBe('failed')
     })
 
     it('Work中Step失败时应该传播错误', async () => {
-      const workflow = new Workflow({ 
+      const workflow = new Workflow({
         id: 'error-workflow'
       })
 
-      const work = new Work({ 
+      const work = new Work({
         id: 'error-work'
       })
 
@@ -206,20 +211,20 @@ describe('基础功能测试', () => {
       workflow.add(work)
 
       await expect(workflow.run(5)).rejects.toThrow('Step 2 failed')
-      
+
       expect(workflow.status).toBe('failed')
     })
 
     it('Workflow中Work失败时应该传播错误', async () => {
-      const workflow = new Workflow({ 
+      const workflow = new Workflow({
         id: 'error-workflow'
       })
 
-      const work1 = new Work({ 
+      const work1 = new Work({
         id: 'success-work'
       })
 
-      const work2 = new Work({ 
+      const work2 = new Work({
         id: 'error-work'
       })
 
@@ -240,7 +245,7 @@ describe('基础功能测试', () => {
       workflow.add(work1).add(work2)
 
       await expect(workflow.run(5)).rejects.toThrow()
-      
+
       expect(workflow.status).toBe('failed')
     })
   })
@@ -256,9 +261,12 @@ describe('基础功能测试', () => {
       })
 
       expect(step.status).toBe('pending')
-      
-      const result = await step.run(10, { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) })
-      
+
+      const result = await step.run(10, {
+        workflow: new Workflow({ id: 'dummy-workflow' }),
+        work: new Work({ id: 'dummy' })
+      })
+
       expect(step.status).toBe('success')
       expect(result.status).toBe('success')
     })
@@ -282,23 +290,23 @@ describe('基础功能测试', () => {
       const step = new Step({
         id: 'pause-status-step',
         run: async (input: number, context) => {
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 100))
           return input * 2
         }
       })
 
       const context = { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) }
       const runPromise = step.run(10, context)
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
       expect(step.status).toBe('running')
-      
+
       await step.pause()
       expect(step.status).toBe('paused')
-      
+
       await step.resume()
       expect(step.status).toBe('running')
-      
+
       await runPromise
       expect(step.status).toBe('success')
     })

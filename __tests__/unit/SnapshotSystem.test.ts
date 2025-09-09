@@ -12,9 +12,9 @@ describe('快照系统测试', () => {
       })
 
       // 执行step以产生状态
-      const context = { 
-        workflow: new Workflow({ id: 'test-workflow' }), 
-        work: new Work({ id: 'test-work' }) 
+      const context = {
+        workflow: new Workflow({ id: 'test-workflow' }),
+        work: new Work({ id: 'test-work' })
       }
       await step.run(10, context)
 
@@ -109,7 +109,7 @@ describe('快照系统测试', () => {
       expect(snapshot.input).toBe(5)
       expect(snapshot.output).toHaveLength(2)
       expect(snapshot.works).toHaveLength(2)
-      
+
       // 验证嵌套的work快照
       expect(snapshot.works[0].id).toBe('work1')
       expect(snapshot.works[0].output).toBe(105)
@@ -125,9 +125,9 @@ describe('快照系统测试', () => {
         }
       })
 
-      const context = { 
-        workflow: new Workflow({ id: 'test-workflow' }), 
-        work: new Work({ id: 'test-work' }) 
+      const context = {
+        workflow: new Workflow({ id: 'test-workflow' }),
+        work: new Work({ id: 'test-work' })
       }
 
       // 执行失败的step
@@ -434,9 +434,9 @@ describe('快照系统测试', () => {
     it('应该能够处理复杂数据结构的快照', async () => {
       const step = new Step({
         id: 'complex-step',
-        run: async (input: { values: number[], meta: { name: string, count: number } }, context) => {
+        run: async (input: { values: number[]; meta: { name: string; count: number } }, context) => {
           return {
-            processed: input.values.map(v => v * 2),
+            processed: input.values.map((v) => v * 2),
             summary: {
               total: input.values.reduce((a, b) => a + b, 0) * 2,
               count: input.values.length,
@@ -452,9 +452,9 @@ describe('快照系统测试', () => {
         meta: { name: 'test', count: 1 }
       }
 
-      const context = { 
-        workflow: new Workflow({ id: 'complex-workflow' }), 
-        work: new Work({ id: 'complex-work' }) 
+      const context = {
+        workflow: new Workflow({ id: 'complex-workflow' }),
+        work: new Work({ id: 'complex-work' })
       }
 
       // 执行复杂数据处理
