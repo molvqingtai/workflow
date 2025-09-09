@@ -1,4 +1,4 @@
-import type { WorkflowSnapshot, WorkSnapshot, StepSnapshot } from './Snapshot'
+import type { WorkflowSnapshot, WorkSnapshot, StepSnapshot } from 'workflow'
 
 // 所有快照类型的联合类型
 type AnySnapshot = WorkflowSnapshot | WorkSnapshot | StepSnapshot
