@@ -4,14 +4,6 @@ import { Workflow, Work, Step } from 'workflow'
 describe('基础功能测试', () => {
   describe('正常执行流程', () => {
     it('应该能够正常执行完整的工作流', async () => {
-      const workflow = new Workflow({
-        id: 'test-workflow'
-      })
-
-      const work = new Work({
-        id: 'test-work'
-      })
-
       const step = new Step({
         id: 'test-step',
         run: async (input: number, context) => {
@@ -19,8 +11,15 @@ describe('基础功能测试', () => {
         }
       })
 
-      work.add(step)
-      workflow.add(work)
+      const work = new Work({
+        id: 'test-work',
+        steps: [step]
+      })
+
+      const workflow = new Workflow({
+        id: 'test-workflow',
+        works: [work]
+      })
 
       const result = await workflow.run(10)
 
@@ -32,14 +31,6 @@ describe('基础功能测试', () => {
     })
 
     it('应该能够执行多个Step的Work', async () => {
-      const workflow = new Workflow({
-        id: 'multi-step-workflow'
-      })
-
-      const work = new Work({
-        id: 'multi-step-work'
-      })
-
       const step1 = new Step({
         id: 'step1',
         run: async (input: number, context) => input + 1
@@ -50,8 +41,15 @@ describe('基础功能测试', () => {
         run: async (input: number, context) => input * 2
       })
 
-      work.add(step1).add(step2)
-      workflow.add(work)
+      const work = new Work({
+        id: 'multi-step-work',
+        steps: [step1, step2]
+      })
+
+      const workflow = new Workflow({
+        id: 'multi-step-workflow',
+        works: [work]
+      })
 
       const result = await workflow.run(5)
 
@@ -61,18 +59,6 @@ describe('基础功能测试', () => {
     })
 
     it('应该能够执行多个Work的Workflow', async () => {
-      const workflow = new Workflow({
-        id: 'multi-work-workflow'
-      })
-
-      const work1 = new Work({
-        id: 'work1'
-      })
-
-      const work2 = new Work({
-        id: 'work2'
-      })
-
       const step1 = new Step({
         id: 'step1',
         run: async (input: number, context) => input + 10
@@ -83,9 +69,20 @@ describe('基础功能测试', () => {
         run: async (input: number, context) => input * 3
       })
 
-      work1.add(step1)
-      work2.add(step2)
-      workflow.add(work1).add(work2)
+      const work1 = new Work({
+        id: 'work1',
+        steps: [step1]
+      })
+
+      const work2 = new Work({
+        id: 'work2',
+        steps: [step2]
+      })
+
+      const workflow = new Workflow({
+        id: 'multi-work-workflow',
+        works: [work1, work2]
+      })
 
       const result = await workflow.run(5)
 
@@ -112,8 +109,8 @@ describe('基础功能测试', () => {
 
       // 开始执行
       const runPromise = step.run(10, {
-        workflow: new Workflow({ id: 'dummy-workflow' }),
-        work: new Work({ id: 'dummy' })
+        workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+        work: new Work({ id: 'dummy', steps: [] })
       })
 
       // 等待执行开始
@@ -135,14 +132,6 @@ describe('基础功能测试', () => {
     })
 
     it('应该能够暂停和恢复Work', async () => {
-      const workflow = new Workflow({
-        id: 'pause-workflow'
-      })
-
-      const work = new Work({
-        id: 'pause-work'
-      })
-
       const step = new Step({
         id: 'pause-work-step',
         run: async (input: number, context) => {
@@ -151,8 +140,15 @@ describe('基础功能测试', () => {
         }
       })
 
-      work.add(step)
-      workflow.add(work)
+      const work = new Work({
+        id: 'pause-work',
+        steps: [step]
+      })
+
+      const workflow = new Workflow({
+        id: 'pause-workflow',
+        works: [work]
+      })
 
       const runPromise = workflow.run(10)
 
@@ -180,21 +176,16 @@ describe('基础功能测试', () => {
       })
 
       await expect(
-        step.run(10, { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) })
+        step.run(10, {
+          workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+          work: new Work({ id: 'dummy', steps: [] })
+        })
       ).rejects.toThrow('Step execution failed')
 
       expect(step.status).toBe('failed')
     })
 
     it('Work中Step失败时应该传播错误', async () => {
-      const workflow = new Workflow({
-        id: 'error-workflow'
-      })
-
-      const work = new Work({
-        id: 'error-work'
-      })
-
       const step1 = new Step({
         id: 'success-step',
         run: async (input: number, context) => input + 1
@@ -207,8 +198,15 @@ describe('基础功能测试', () => {
         }
       })
 
-      work.add(step1).add(step2)
-      workflow.add(work)
+      const work = new Work({
+        id: 'error-work',
+        steps: [step1, step2]
+      })
+
+      const workflow = new Workflow({
+        id: 'error-workflow',
+        works: [work]
+      })
 
       await expect(workflow.run(5)).rejects.toThrow('Step 2 failed')
 
@@ -216,18 +214,6 @@ describe('基础功能测试', () => {
     })
 
     it('Workflow中Work失败时应该传播错误', async () => {
-      const workflow = new Workflow({
-        id: 'error-workflow'
-      })
-
-      const work1 = new Work({
-        id: 'success-work'
-      })
-
-      const work2 = new Work({
-        id: 'error-work'
-      })
-
       const successStep = new Step({
         id: 'success-step',
         run: async (input: number, context) => input * 2
@@ -240,9 +226,20 @@ describe('基础功能测试', () => {
         }
       })
 
-      work1.add(successStep)
-      work2.add(errorStep)
-      workflow.add(work1).add(work2)
+      const work1 = new Work({
+        id: 'success-work',
+        steps: [successStep]
+      })
+
+      const work2 = new Work({
+        id: 'error-work',
+        steps: [errorStep]
+      })
+
+      const workflow = new Workflow({
+        id: 'error-workflow',
+        works: [work1, work2]
+      })
 
       await expect(workflow.run(5)).rejects.toThrow()
 
@@ -263,8 +260,8 @@ describe('基础功能测试', () => {
       expect(step.status).toBe('pending')
 
       const result = await step.run(10, {
-        workflow: new Workflow({ id: 'dummy-workflow' }),
-        work: new Work({ id: 'dummy' })
+        workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+        work: new Work({ id: 'dummy', steps: [] })
       })
 
       expect(step.status).toBe('success')
@@ -277,7 +274,10 @@ describe('基础功能测试', () => {
         run: async (input: number, context) => input * 2
       })
 
-      const context = { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) }
+      const context = {
+        workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+        work: new Work({ id: 'dummy', steps: [] })
+      }
       const result1 = await step.run(10, context)
       const result2 = await step.run(10, context)
 
@@ -295,7 +295,10 @@ describe('基础功能测试', () => {
         }
       })
 
-      const context = { workflow: new Workflow({ id: 'dummy-workflow' }), work: new Work({ id: 'dummy' }) }
+      const context = {
+        workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+        work: new Work({ id: 'dummy', steps: [] })
+      }
       const runPromise = step.run(10, context)
       await new Promise((resolve) => setTimeout(resolve, 50))
 
