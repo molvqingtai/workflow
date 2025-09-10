@@ -223,7 +223,6 @@ export class Workflow {
       })
       work.on(STEP_EVENT.CHANGE, (snapshot) => {
         this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
-        this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
       })
     })
   }
@@ -527,6 +526,7 @@ export class Step {
       this.status = RUN_STATUS.RUNNING
       let snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.START, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       await this.pauseResolvers?.promise
       const output = await this._run?.(input, context)
       this.output = output
@@ -534,12 +534,14 @@ export class Step {
       await this.pauseResolvers?.promise
       snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -553,12 +555,14 @@ export class Step {
       this.pauseResolvers = Promise.withResolvers<void>()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       throw error
     }
   }
@@ -578,6 +582,7 @@ export class Step {
       this.error = (error as Error).message
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       throw error
     }
   }
