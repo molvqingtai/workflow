@@ -20,6 +20,7 @@ export interface WorkflowSnapshot {
   input?: any
   output?: any
   error?: string
+  meta?: Record<string, any>
   works: Array<WorkSnapshot>
 }
 
@@ -32,6 +33,7 @@ export interface WorkSnapshot {
   input?: any
   output?: any
   error?: string
+  meta?: Record<string, any>
   steps: Array<StepSnapshot>
 }
 
@@ -45,6 +47,7 @@ export interface StepSnapshot {
   output?: any
   context?: any
   error?: string
+  meta?: Record<string, any>
 }
 
 export const WORKFLOW_EVENT = {
@@ -112,6 +115,7 @@ export interface WorkflowOptions {
   input?: any
   output?: any
   error?: string
+  meta?: Record<string, any>
   works: Work[]
 }
 
@@ -123,6 +127,7 @@ export interface WorkOptions {
   input?: any
   output?: any
   error?: string
+  meta?: Record<string, any>
   steps: Step[]
 }
 
@@ -134,6 +139,7 @@ export interface StepOptions {
   input?: any
   output?: any
   error?: string
+  meta?: Record<string, any>
   run: (input: any, context: StepContext) => Promise<any>
 }
 
@@ -155,6 +161,7 @@ export class Workflow {
   output?: any
   error?: string
   status: RunStatus
+  meta?: Record<string, any>
   readonly works: Work[] = []
   private eventHub: EventHub<WorkflowEventMap>
   private preloadPromise?: Promise<void>
@@ -166,6 +173,7 @@ export class Workflow {
     this.input = options?.input
     this.output = options?.output
     this.error = options?.error
+    this.meta = options?.meta
     this.works = options?.works || []
 
     this.eventHub = new EventHub<WorkflowEventMap>()
@@ -237,6 +245,7 @@ export class Workflow {
       input: this.input,
       output: this.output,
       error: this.error,
+      meta: this.meta,
       works: this.works.map((work) => work.getSnapshot())
     }
   }
@@ -325,6 +334,7 @@ export class Work {
   input: any
   output: any
   error?: string
+  meta?: Record<string, any>
   status: RunStatus = RUN_STATUS.PENDING
   readonly steps: Step[] = []
   private eventHub: EventHub<WorkEventMap>
@@ -338,6 +348,7 @@ export class Work {
     this.input = options?.input
     this.output = options?.output
     this.error = options?.error
+    this.meta = options?.meta
     this.steps = options?.steps ?? []
     this.eventHub = new EventHub<WorkEventMap>()
     this.steps.forEach((step) => {
@@ -392,6 +403,7 @@ export class Work {
       input: this.input,
       output: this.output,
       error: this.error,
+      meta: this.meta,
       steps: this.steps.map((step) => step.getSnapshot())
     }
   }
@@ -486,6 +498,7 @@ export class Step {
   input: any
   output: any
   error?: string
+  meta?: any
   status: RunStatus = RUN_STATUS.PENDING
   private eventHub: EventHub<StepEventMap>
   private preloadPromise?: Promise<void>
@@ -499,6 +512,7 @@ export class Step {
     this.input = options?.input
     this.output = options?.output
     this.error = options?.error
+    this.meta = options?.meta
     this._run = options?.run
     this.eventHub = new EventHub<StepEventMap>()
   }
@@ -512,7 +526,8 @@ export class Step {
       status: this.status,
       input: this.input,
       output: this.output,
-      error: this.error
+      error: this.error,
+      meta: this.meta
     }
   }
 
