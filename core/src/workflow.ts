@@ -204,6 +204,7 @@ export class Workflow {
       })
       work.on(WORK_EVENT.CHANGE, (snapshot) => {
         this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
+        this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
       })
       work.on(STEP_EVENT.START, (snapshot) => {
         this.eventHub.emit(STEP_EVENT.START, snapshot)
@@ -222,6 +223,7 @@ export class Workflow {
       })
       work.on(STEP_EVENT.CHANGE, (snapshot) => {
         this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
+        this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
       })
     })
   }
@@ -376,6 +378,7 @@ export class Work {
 
       step.on(STEP_EVENT.CHANGE, async (snapshot) => {
         this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
+        this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
       })
     })
   }
