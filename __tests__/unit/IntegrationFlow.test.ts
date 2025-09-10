@@ -30,6 +30,8 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
+      expect(workflow.status).toBe(RUN_STATUS.PENDING)
+      expect(workflow.getSnapshot().status).toBe(RUN_STATUS.PENDING)
       const result = await workflow.run(5)
 
       // 验证完整执行结果
@@ -200,7 +202,7 @@ describe('完整流程集成测试', () => {
       expect(restoredStep2.output).toBe(250)
 
       // 验证能够生成正确的快照
-      const currentSnapshot = restoredWorkflow.toSnapshot()
+      const currentSnapshot = restoredWorkflow.getSnapshot()
       expect(currentSnapshot.id).toBe(workflowSnapshot.id)
       expect(currentSnapshot.status).toBe(workflowSnapshot.status)
       expect(currentSnapshot.works).toHaveLength(1)
@@ -466,7 +468,7 @@ describe('完整流程集成测试', () => {
       expect(step1.status).toBe(RUN_STATUS.PAUSED)
 
       // 获取暂停时的快照
-      const pausedSnapshot = originalWorkflow.toSnapshot()
+      const pausedSnapshot = originalWorkflow.getSnapshot()
       expect(pausedSnapshot.status).toBe('paused')
       expect(pausedSnapshot.input).toBe(50)
 
@@ -589,7 +591,7 @@ describe('完整流程集成测试', () => {
       expect(workflow.status).toBe(RUN_STATUS.PAUSED)
 
       // 获取快照用于恢复
-      const midExecutionSnapshot = workflow.toSnapshot()
+      const midExecutionSnapshot = workflow.getSnapshot()
 
       // 验证快照包含了已完成的step1状态
       expect(midExecutionSnapshot.works[0].steps[0].status).toBe('success')
