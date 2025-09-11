@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Workflow, Work, Step } from 'workflow'
+import { Workflow, Work, Step, RUN_STATUS } from 'workflow'
 
 describe('事件系统测试', () => {
   describe('Step级别事件', () => {
@@ -18,7 +18,7 @@ describe('事件系统测试', () => {
       step.on('step:start', () => events.push('step:start'))
       step.on('step:success', () => events.push('step:success'))
 
-      const result = await step.run(10, {
+      const result = await step.start(10, {
         workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
         work: new Work({ id: 'dummy', steps: [] })
       })
@@ -46,7 +46,7 @@ describe('事件系统测试', () => {
         workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
         work: new Work({ id: 'dummy', steps: [] })
       }
-      const runPromise = step.run(10, context)
+      const runPromise = step.start(10, context)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
       await step.pause()
@@ -77,7 +77,7 @@ describe('事件系统测试', () => {
         workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
         work: new Work({ id: 'dummy', steps: [] })
       }
-      await expect(step.run(10, context)).rejects.toThrow('Test error')
+      await expect(step.start(10, context)).rejects.toThrow('Test error')
 
       expect(events).toContain('step:failed')
       expect(errors).toHaveLength(1)
@@ -111,7 +111,7 @@ describe('事件系统测试', () => {
       work.on('step:start', () => events.push('step:start'))
       work.on('step:success', () => events.push('step:success'))
 
-      await workflow.run(10)
+      await workflow.start(10)
 
       expect(events).toContain('work:start')
       expect(events).toContain('work:success')
@@ -147,7 +147,7 @@ describe('事件系统测试', () => {
       workflow.on('step:start', () => events.push('step:start'))
       workflow.on('step:success', () => events.push('step:success'))
 
-      await workflow.run(10)
+      await workflow.start(10)
 
       expect(events).toContain('workflow:start')
       expect(events).toContain('workflow:success')
@@ -171,7 +171,7 @@ describe('事件系统测试', () => {
         eventSnapshot = snapshot
       })
 
-      await step.run(15, {
+      await step.start(15, {
         workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
         work: new Work({ id: 'dummy', steps: [] })
       })
@@ -201,11 +201,223 @@ describe('事件系统测试', () => {
         workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
         work: new Work({ id: 'dummy', steps: [] })
       }
-      await expect(step.run(10, context)).rejects.toThrow()
+      await expect(step.start(10, context)).rejects.toThrow()
 
       expect(eventSnapshot).not.toBeNull()
       expect(eventSnapshot.status).toBe('failed')
       expect(eventSnapshot.error).toBe('Expected error')
+    })
+
+    describe('Stop事件测试', () => {
+      it('应该正确触发Step stop事件', async () => {
+        const events: string[] = []
+
+        const step = new Step({
+          id: 'stop-event-step',
+          run: async (input: number, context) => {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            return input * 2
+          }
+        })
+
+        step.on('step:stop', () => events.push('step:stop'))
+        step.on('step:change', () => events.push('step:change'))
+
+        const context = {
+          workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+          work: new Work({ id: 'dummy', steps: [] })
+        }
+
+        // 开始执行然后停止
+        const runPromise = step.start(10, context)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        await step.stop()
+
+        expect(events).toContain('step:stop')
+        expect(events).toContain('step:change')
+        expect(step.status).toBe(RUN_STATUS.STOPPED)
+
+        // 不等待被停止的执行，因为它会永远等待
+      })
+
+      it('应该正确触发Work stop事件', async () => {
+        const events: string[] = []
+
+        const step = new Step({
+          id: 'work-stop-step',
+          run: async (input: number, context) => {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            return input * 2
+          }
+        })
+
+        const work = new Work({
+          id: 'stop-event-work',
+          steps: [step]
+        })
+
+        const workflow = new Workflow({
+          id: 'stop-event-workflow',
+          works: [work]
+        })
+
+        work.on('work:stop', () => events.push('work:stop'))
+        work.on('work:change', () => events.push('work:change'))
+        work.on('step:stop', () => events.push('step:stop'))
+
+        // 开始执行然后停止work
+        const runPromise = workflow.start(10)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        await work.stop()
+
+        expect(events).toContain('work:stop')
+        expect(events).toContain('work:change')
+        // step:stop 事件可能不会被触发，因为step需要在RUNNING或PAUSED状态才能被停止
+        expect(work.status).toBe(RUN_STATUS.STOPPED)
+
+        // 不等待被停止的执行，因为它会永远等待
+      })
+
+      it('应该正确触发Workflow stop事件', async () => {
+        const events: string[] = []
+
+        const step = new Step({
+          id: 'workflow-stop-step',
+          run: async (input: number, context) => {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            return input * 2
+          }
+        })
+
+        const work = new Work({
+          id: 'workflow-stop-work',
+          steps: [step]
+        })
+
+        const workflow = new Workflow({
+          id: 'stop-event-workflow',
+          works: [work]
+        })
+
+        workflow.on('workflow:stop', () => events.push('workflow:stop'))
+        workflow.on('workflow:change', () => events.push('workflow:change'))
+        workflow.on('work:stop', () => events.push('work:stop'))
+        workflow.on('step:stop', () => events.push('step:stop'))
+
+        // 开始执行然后停止workflow
+        const runPromise = workflow.start(10)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        await workflow.stop()
+
+        expect(events).toContain('workflow:stop')
+        expect(events).toContain('workflow:change')
+        expect(events).toContain('work:stop')
+        // step:stop 事件可能不会被触发，因为step需要在RUNNING或PAUSED状态才能被停止
+        expect(workflow.status).toBe(RUN_STATUS.STOPPED)
+
+        // 不等待被停止的执行，因为它会永远等待
+      })
+
+      it('stop事件应该携带正确的快照数据', async () => {
+        let eventSnapshot: any = null
+
+        const step = new Step({
+          id: 'stop-snapshot-step',
+          run: async (input: number, context) => {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            return input * 2
+          }
+        })
+
+        step.on('step:stop', (snapshot) => {
+          eventSnapshot = snapshot
+        })
+
+        const context = {
+          workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+          work: new Work({ id: 'dummy', steps: [] })
+        }
+
+        // 开始执行然后停止
+        const runPromise = step.start(15, context)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        await step.stop()
+
+        expect(eventSnapshot).not.toBeNull()
+        expect(eventSnapshot.id).toBe('stop-snapshot-step')
+        expect(eventSnapshot.status).toBe(RUN_STATUS.STOPPED)
+        expect(eventSnapshot.input).toBe(15)
+
+        // 不等待被停止的执行，因为它会永远等待
+      })
+
+      it('停止已完成的组件不应该触发stop事件', async () => {
+        const events: string[] = []
+
+        const step = new Step({
+          id: 'completed-stop-step',
+          run: async (input: number, context) => input * 2
+        })
+
+        step.on('step:stop', () => events.push('step:stop'))
+        step.on('step:change', () => events.push('step:change'))
+
+        const context = {
+          workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+          work: new Work({ id: 'dummy', steps: [] })
+        }
+
+        // 先完成执行
+        await step.start(10, context)
+        expect(step.status).toBe('success')
+
+        // 清空事件数组
+        events.length = 0
+
+        // 尝试停止已完成的step（应该无操作）
+        await step.stop()
+
+        expect(events).not.toContain('step:stop')
+        expect(events).not.toContain('step:change')
+        expect(step.status).toBe('success')
+      })
+
+      it('停止失败的组件不应该触发stop事件', async () => {
+        const events: string[] = []
+
+        const step = new Step({
+          id: 'failed-stop-step',
+          run: async (input: number, context) => {
+            throw new Error('Test error')
+          }
+        })
+
+        step.on('step:stop', () => events.push('step:stop'))
+        step.on('step:change', () => events.push('step:change'))
+
+        const context = {
+          workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
+          work: new Work({ id: 'dummy', steps: [] })
+        }
+
+        // 先让执行失败
+        try {
+          await step.start(10, context)
+        } catch (error) {
+          // 忽略错误
+        }
+        expect(step.status).toBe('failed')
+
+        // 清空事件数组
+        events.length = 0
+
+        // 尝试停止失败的step（应该无操作）
+        await step.stop()
+
+        expect(events).not.toContain('step:stop')
+        expect(events).not.toContain('step:change')
+        expect(step.status).toBe('failed')
+      })
     })
   })
 })

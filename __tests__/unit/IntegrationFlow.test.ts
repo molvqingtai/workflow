@@ -32,7 +32,7 @@ describe('完整流程集成测试', () => {
 
       expect(workflow.status).toBe(RUN_STATUS.PENDING)
       expect(workflow.getSnapshot().status).toBe(RUN_STATUS.PENDING)
-      const result = await workflow.run(5)
+      const result = await workflow.start(5)
 
       // 验证完整执行结果
       expect(result.status).toBe(RUN_STATUS.SUCCESS)
@@ -83,7 +83,7 @@ describe('完整流程集成测试', () => {
       })
 
       // 开始执行
-      const runPromise = workflow.run(10)
+      const runPromise = workflow.start(10)
 
       // 等待执行开始
       await new Promise((resolve) => setTimeout(resolve, 50))
@@ -233,7 +233,7 @@ describe('完整流程集成测试', () => {
       })
 
       // 执行应该失败
-      await expect(workflow.run(10)).rejects.toThrow('Step execution failed')
+      await expect(workflow.start(10)).rejects.toThrow('Step execution failed')
 
       // 验证错误状态传播
       expect(workflow.status).toBe(RUN_STATUS.FAILED)
@@ -280,7 +280,7 @@ describe('完整流程集成测试', () => {
       })
 
       const startTime = Date.now()
-      const result = await workflow.run(10)
+      const result = await workflow.start(10)
       const endTime = Date.now()
 
       // 验证并行执行（应该接近100ms而不是150ms）
@@ -322,7 +322,7 @@ describe('完整流程集成测试', () => {
         works: [work1, work2]
       })
 
-      await expect(workflow.run(5)).rejects.toThrow()
+      await expect(workflow.start(5)).rejects.toThrow()
 
       // workflow应该失败
       expect(workflow.status).toBe(RUN_STATUS.FAILED)
@@ -368,7 +368,7 @@ describe('完整流程集成测试', () => {
       workflow.on('step:start', () => allEvents.push('step:start'))
       workflow.on('step:success', () => allEvents.push('step:success'))
 
-      await workflow.run(10)
+      await workflow.start(10)
 
       // 验证事件触发顺序和完整性
       expect(allEvents).toEqual([
@@ -410,7 +410,7 @@ describe('完整流程集成测试', () => {
       workflow.on('step:pause', () => pauseResumeEvents.push('step:pause'))
       workflow.on('step:resume', () => pauseResumeEvents.push('step:resume'))
 
-      const runPromise = workflow.run(10)
+      const runPromise = workflow.start(10)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
       await workflow.pause()
@@ -458,7 +458,7 @@ describe('完整流程集成测试', () => {
       })
 
       // 开始执行并暂停
-      const runPromise = originalWorkflow.run(50)
+      const runPromise = originalWorkflow.start(50)
       await new Promise((resolve) => setTimeout(resolve, 50)) // 等待第一个step开始
 
       // 暂停
@@ -524,7 +524,7 @@ describe('完整流程集成测试', () => {
       expect(restoredStep1.status).toBe('pending')
 
       // 第三阶段：重新执行workflow
-      const finalResult = await restoredWorkflow.run(50)
+      const finalResult = await restoredWorkflow.start(50)
 
       // 验证最终结果
       expect(finalResult.status).toBe(RUN_STATUS.SUCCESS)
@@ -576,7 +576,7 @@ describe('完整流程集成测试', () => {
       })
 
       // 开始执行
-      const runPromise = workflow.run(10)
+      const runPromise = workflow.start(10)
 
       // 等待第一个step完成，第二个step开始
       await new Promise((resolve) => setTimeout(resolve, 50))
@@ -656,7 +656,7 @@ describe('完整流程集成测试', () => {
       expect(recoveredStep3.status).toBe('pending') // 保持pending
 
       // 重新执行workflow
-      const finalResult = await recoveredWorkflow.run(10)
+      const finalResult = await recoveredWorkflow.start(10)
 
       // 验证最终结果
       expect(finalResult.status).toBe(RUN_STATUS.SUCCESS)
@@ -669,6 +669,200 @@ describe('完整流程集成测试', () => {
       expect(recoveredStep2.output).toBe(40)
       expect(recoveredStep3.status).toBe(RUN_STATUS.SUCCESS)
       expect(recoveredStep3.output).toBe(20)
+    })
+  })
+
+  describe('Stop功能集成测试', () => {
+    it('应该能够停止正在运行的复杂workflow', async () => {
+      const step1 = new Step({
+        id: 'integration-stop-step1',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          return input * 2
+        }
+      })
+
+      const step2 = new Step({
+        id: 'integration-stop-step2',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          return input + 10
+        }
+      })
+
+      const step3 = new Step({
+        id: 'integration-stop-step3',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          return input * 3
+        }
+      })
+
+      const work1 = new Work({
+        id: 'integration-stop-work1',
+        steps: [step1, step2]
+      })
+
+      const work2 = new Work({
+        id: 'integration-stop-work2',
+        steps: [step3]
+      })
+
+      const workflow = new Workflow({
+        id: 'integration-stop-workflow',
+        works: [work1, work2]
+      })
+
+      // 监听所有层级的stop事件
+      const stopEvents: string[] = []
+      workflow.on('workflow:stop', () => stopEvents.push('workflow:stop'))
+      workflow.on('work:stop', () => stopEvents.push('work:stop'))
+      workflow.on('step:stop', () => stopEvents.push('step:stop'))
+
+      // 开始执行
+      const runPromise = workflow.start(5)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      // 停止正在运行的workflow
+      await workflow.stop()
+
+      // 验证所有组件都被停止
+      expect(workflow.status).toBe(RUN_STATUS.STOPPED)
+      expect(work1.status).toBe(RUN_STATUS.STOPPED)
+      expect(work2.status).toBe(RUN_STATUS.STOPPED)
+      // 只有正在运行或暂停的step会被停止
+      // step2和step3可能还没开始运行，所以状态可能不变
+
+      // 验证stop事件被正确触发
+      expect(stopEvents).toContain('workflow:stop')
+      expect(stopEvents).toContain('work:stop')
+      // step可能没有触发stop事件，因为它必须在RUNNING或PAUSED状态才能被停止
+
+      // 不等待被停止的执行，因为它会永远等待
+    })
+
+    it('应该能够停止特定的正在运行的Work', async () => {
+      const step1 = new Step({
+        id: 'selective-stop-step1',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 200))
+          return input * 2
+        }
+      })
+
+      const step2 = new Step({
+        id: 'selective-stop-step2',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+          return input + 10
+        }
+      })
+
+      const work1 = new Work({
+        id: 'selective-stop-work1',
+        steps: [step1]
+      })
+
+      const work2 = new Work({
+        id: 'selective-stop-work2',
+        steps: [step2]
+      })
+
+      const workflow = new Workflow({
+        id: 'selective-stop-workflow',
+        works: [work1, work2]
+      })
+
+      // 开始执行
+      const runPromise = workflow.start(5)
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      // 只停止work1
+      await work1.stop()
+
+      // 验证work1和其step被停止
+      expect(work1.status).toBe(RUN_STATUS.STOPPED)
+      expect(step1.status).toBe(RUN_STATUS.STOPPED)
+
+      // work2应该继续执行并完成
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(work2.status).toBe(RUN_STATUS.SUCCESS)
+      expect(step2.status).toBe(RUN_STATUS.SUCCESS)
+
+      // 不等待被停止的执行，因为它会永远等待
+    })
+
+    it('不能停止已完成的组件', async () => {
+      const step = new Step({
+        id: 'completed-step',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+          return input * 2
+        }
+      })
+
+      const work = new Work({
+        id: 'completed-work',
+        steps: [step]
+      })
+
+      const workflow = new Workflow({
+        id: 'completed-workflow',
+        works: [work]
+      })
+
+      // 第一次执行并完成
+      await workflow.start(5)
+      expect(workflow.status).toBe(RUN_STATUS.SUCCESS)
+      expect(step.output).toBe(10)
+
+      // 尝试停止已完成的workflow（应该无操作）
+      await workflow.stop()
+      expect(workflow.status).toBe(RUN_STATUS.SUCCESS) // Workflow已完成，不能停止
+      expect(work.status).toBe(RUN_STATUS.SUCCESS) // Work已完成，不能停止
+      expect(step.status).toBe(RUN_STATUS.SUCCESS) // Step不能从SUCCESS状态停止
+
+      // 由于workflow状态仍然是SUCCESS，不能重新启动
+      const secondResult = await workflow.start(10)
+      expect(secondResult.status).toBe(RUN_STATUS.SUCCESS)
+      expect(secondResult.works[0].output).toBe(10) // 原来的输出保持不变
+      expect(step.output).toBe(10)
+    })
+
+    it('应该能够停止暂停中的Step', async () => {
+      const step = new Step({
+        id: 'pause-stop-step',
+        run: async (input: number) => {
+          await new Promise((resolve) => setTimeout(resolve, 200))
+          return input * 2
+        }
+      })
+
+      const work = new Work({
+        id: 'pause-stop-work',
+        steps: [step]
+      })
+
+      const workflow = new Workflow({
+        id: 'pause-stop-workflow',
+        works: [work]
+      })
+
+      // 开始执行
+      const runPromise = workflow.start(5)
+
+      // 等待执行开始然后暂停
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await workflow.pause()
+      expect(workflow.status).toBe(RUN_STATUS.PAUSED)
+
+      // 停止暂停中的workflow（现在Step也可以从PAUSED状态停止）
+      await workflow.stop()
+      expect(workflow.status).toBe(RUN_STATUS.STOPPED)
+      expect(work.status).toBe(RUN_STATUS.STOPPED)
+      expect(step.status).toBe(RUN_STATUS.STOPPED)
+
+      // 不等待被停止的执行，因为它会永远等待
     })
   })
 })

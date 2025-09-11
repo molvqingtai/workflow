@@ -6,7 +6,8 @@ export const RUN_STATUS = {
   RUNNING: 'running',
   PAUSED: 'paused',
   SUCCESS: 'success',
-  FAILED: 'failed'
+  FAILED: 'failed',
+  STOPPED: 'stoped'
 } as const
 
 export type RunStatus = (typeof RUN_STATUS)[keyof typeof RUN_STATUS]
@@ -56,7 +57,7 @@ export const WORKFLOW_EVENT = {
   FAILED: 'workflow:failed',
   PAUSE: 'workflow:pause',
   RESUME: 'workflow:resume',
-  PRELOAD: 'workflow:preload',
+  STOP: 'workflow:stop',
   CHANGE: 'workflow:change'
 } as const
 
@@ -66,7 +67,7 @@ export const WORK_EVENT = {
   FAILED: 'work:failed',
   PAUSE: 'work:pause',
   RESUME: 'work:resume',
-  PRELOAD: 'work:preload',
+  STOP: 'work:stop',
   CHANGE: 'work:change'
 } as const
 
@@ -76,7 +77,7 @@ export const STEP_EVENT = {
   FAILED: 'step:failed',
   PAUSE: 'step:pause',
   RESUME: 'step:resume',
-  PRELOAD: 'step:preload',
+  STOP: 'step:stop',
   CHANGE: 'step:change'
 } as const
 
@@ -93,6 +94,7 @@ export type StepEventMap = {
   [STEP_EVENT.PAUSE]: (snapshot: StepSnapshot) => void
   [STEP_EVENT.RESUME]: (snapshot: StepSnapshot) => void
   [STEP_EVENT.CHANGE]: (snapshot: StepSnapshot) => void
+  [STEP_EVENT.STOP]: (snapshot: StepSnapshot) => void
 }
 
 export type WorkEventMap = {
@@ -102,6 +104,7 @@ export type WorkEventMap = {
   [WORK_EVENT.PAUSE]: (snapshot: WorkSnapshot) => void
   [WORK_EVENT.RESUME]: (snapshot: WorkSnapshot) => void
   [WORK_EVENT.CHANGE]: (snapshot: WorkSnapshot) => void
+  [WORK_EVENT.STOP]: (snapshot: WorkSnapshot) => void
 } & StepEventMap
 
 export type WorkflowEventMap = {
@@ -111,6 +114,7 @@ export type WorkflowEventMap = {
   [WORKFLOW_EVENT.PAUSE]: (snapshot: WorkflowSnapshot) => void
   [WORKFLOW_EVENT.RESUME]: (snapshot: WorkflowSnapshot) => void
   [WORKFLOW_EVENT.CHANGE]: (snapshot: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.STOP]: (snapshot: WorkflowSnapshot) => void
 } & WorkEventMap
 
 export interface WorkflowOptions {
@@ -168,9 +172,9 @@ export class Workflow {
   error?: string
   status: RunStatus
   meta?: Record<string, any>
-  readonly works: Work[] = []
-  private eventHub: EventHub<WorkflowEventMap>
-  private preloadPromise?: Promise<void>
+  works: Work[] = []
+  readonly eventHub: EventHub<WorkflowEventMap>
+
   constructor(options?: WorkflowOptions) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
@@ -200,11 +204,12 @@ export class Workflow {
   }
 
   add(work: Work) {
-    this.works.push(work)
+    this.works = [...this.works.filter((w) => w.id !== work.id), work]
     work.on(WORK_EVENT.START, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.START, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
     })
+
     work.on(WORK_EVENT.PAUSE, async (snapshot) => {
       this.eventHub.emit(WORK_EVENT.PAUSE, snapshot)
       if (this.status === RUN_STATUS.PAUSED) return
@@ -225,6 +230,18 @@ export class Workflow {
         this.eventHub.emit(WORKFLOW_EVENT.CHANGE, workflowSnapshot)
       }
     })
+
+    work.on(WORK_EVENT.STOP, async (snapshot) => {
+      this.eventHub.emit(WORK_EVENT.STOP, snapshot)
+      if (this.status === RUN_STATUS.STOPPED) return
+      if (this.works.every((work) => work.status === RUN_STATUS.STOPPED)) {
+        this.status = RUN_STATUS.STOPPED
+        const workflowSnapshot = this.getSnapshot()
+        this.eventHub.emit(WORKFLOW_EVENT.STOP, workflowSnapshot)
+        this.eventHub.emit(WORKFLOW_EVENT.CHANGE, workflowSnapshot)
+      }
+    })
+
     work.on(WORK_EVENT.SUCCESS, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
     })
@@ -256,12 +273,28 @@ export class Workflow {
     work.on(STEP_EVENT.CHANGE, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
     })
+    work.on(STEP_EVENT.STOP, (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.STOP, snapshot)
+    })
     return this
   }
 
-  async run(input?: any) {
+  query(workId: string) {
+    return this.works.find((work) => work.id === workId)
+  }
+
+  delete(workId: string) {
+    this.works = this.works.filter((work) => {
+      if (work.id === workId) {
+        work.eventHub.off()
+        return false
+      }
+      return true
+    })
+  }
+
+  async start(input?: any) {
     try {
-      await this.preloadPromise
       if (this.status !== RUN_STATUS.PENDING) {
         return this
       }
@@ -270,7 +303,7 @@ export class Workflow {
       let snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.START, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
-      this.output = await Promise.all(this.works.map((work) => work.run(input, { workflow: this })))
+      this.output = await Promise.all(this.works.map((work) => work.start(input, { workflow: this })))
       this.status = RUN_STATUS.SUCCESS
       snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.SUCCESS, snapshot)
@@ -327,6 +360,23 @@ export class Workflow {
     }
   }
 
+  async stop() {
+    if (
+      this.status === RUN_STATUS.PENDING ||
+      this.status === RUN_STATUS.STOPPED ||
+      this.status === RUN_STATUS.SUCCESS ||
+      this.status === RUN_STATUS.FAILED
+    ) {
+      return this
+    }
+    this.status = RUN_STATUS.STOPPED
+    await Promise.all(this.works.map((work) => work.stop()))
+    const snapshot = this.getSnapshot()
+    this.eventHub.emit(WORKFLOW_EVENT.STOP, snapshot)
+    this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
+    return this
+  }
+
   on<K extends keyof WorkflowEventMap>(event: K, listener: WorkflowEventMap[K]) {
     this.eventHub.on(event, listener)
   }
@@ -346,10 +396,8 @@ export class Work {
   error?: string
   meta?: Record<string, any>
   status: RunStatus = RUN_STATUS.PENDING
-  readonly steps: Step[] = []
-  private eventHub: EventHub<WorkEventMap>
-
-  private preloadPromise?: Promise<void>
+  steps: Step[] = []
+  readonly eventHub: EventHub<WorkEventMap>
   constructor(options?: WorkOptions) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
@@ -379,7 +427,7 @@ export class Work {
   }
 
   add(step: Step) {
-    this.steps.push(step)
+    this.steps = [...this.steps.filter((s) => s.id !== step.id), step]
     step.on(STEP_EVENT.START, async (snapshot) => {
       this.eventHub.emit(STEP_EVENT.START, snapshot)
       if (this.status === RUN_STATUS.RUNNING) return
@@ -388,6 +436,7 @@ export class Work {
       this.eventHub.emit(WORK_EVENT.START, workSnapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
+
     step.on(STEP_EVENT.PAUSE, async (snapshot) => {
       this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
       if (this.status === RUN_STATUS.PAUSED) return
@@ -406,6 +455,15 @@ export class Work {
       this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
+    step.on(STEP_EVENT.STOP, async (snapshot) => {
+      this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
+      if (this.status === RUN_STATUS.STOPPED) return
+      this.status = RUN_STATUS.STOPPED
+      const workSnapshot = this.getSnapshot()
+      this.eventHub.emit(WORK_EVENT.STOP, workSnapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
+    })
+
     step.on(STEP_EVENT.SUCCESS, async (snapshot) => {
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
     })
@@ -420,10 +478,23 @@ export class Work {
     })
   }
 
-  async run(input: any, context?: WorkContext) {
+  delete(stepId: string) {
+    this.steps = this.steps.filter((step) => {
+      if (step.id === stepId) {
+        step.eventHub.off()
+        return false
+      }
+      return true
+    })
+  }
+
+  query(stepId: string) {
+    return this.steps.find((step) => step.id === stepId)
+  }
+
+  async start(input: any, context?: WorkContext) {
     try {
-      await this.preloadPromise
-      if (this.status !== RUN_STATUS.PENDING) {
+      if (this.status !== RUN_STATUS.PENDING && this.status !== RUN_STATUS.STOPPED) {
         return this
       }
       this.input = input
@@ -433,7 +504,7 @@ export class Work {
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       let currentInput = input
       for (const step of this.steps) {
-        const res = await step.run(currentInput, { ...context, work: this })
+        const res = await step.start(currentInput, { ...context, work: this })
         currentInput = res.output
       }
       this.status = RUN_STATUS.SUCCESS
@@ -493,6 +564,32 @@ export class Work {
     }
   }
 
+  async stop() {
+    try {
+      if (
+        this.status === RUN_STATUS.PENDING ||
+        this.status === RUN_STATUS.STOPPED ||
+        this.status === RUN_STATUS.SUCCESS ||
+        this.status === RUN_STATUS.FAILED
+      ) {
+        return this
+      }
+      this.status = RUN_STATUS.STOPPED
+      await Promise.all(this.steps.map((step) => step.stop()))
+      const snapshot = this.getSnapshot()
+      this.eventHub.emit(WORK_EVENT.STOP, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
+      return this
+    } catch (error) {
+      this.status = RUN_STATUS.FAILED
+      this.error = (error as Error).message
+      const snapshot = this.getSnapshot()
+      this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
+      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
+      throw error
+    }
+  }
+
   on<K extends keyof WorkEventMap>(event: K, listener: WorkEventMap[K]) {
     this.eventHub.on(event, listener)
   }
@@ -512,10 +609,10 @@ export class Step {
   error?: string
   meta?: any
   status: RunStatus = RUN_STATUS.PENDING
-  private eventHub: EventHub<StepEventMap>
-  private preloadPromise?: Promise<void>
+  readonly eventHub: EventHub<StepEventMap>
   private pauseResolvers?: PromiseWithResolvers<void>
-  private _run?: (input: any, context?: StepContext) => Promise<any>
+  private stopResolvers?: PromiseWithResolvers<void>
+  private run?: (input: any, context?: StepContext) => Promise<any>
   constructor(options?: StepOptions) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
@@ -525,7 +622,7 @@ export class Step {
     this.output = options?.output
     this.error = options?.error
     this.meta = options?.meta
-    this._run = options?.run
+    this.run = options?.run
     this.eventHub = new EventHub<StepEventMap>()
   }
 
@@ -543,10 +640,9 @@ export class Step {
     }
   }
 
-  async run(input: any, context?: StepContext) {
+  async start(input: any, context?: StepContext) {
     try {
-      await this.preloadPromise
-      if (this.status !== RUN_STATUS.PENDING) {
+      if (this.status !== RUN_STATUS.PENDING && this.status !== RUN_STATUS.STOPPED) {
         return this
       }
       this.input = input
@@ -555,10 +651,12 @@ export class Step {
       this.eventHub.emit(STEP_EVENT.START, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       await this.pauseResolvers?.promise
-      const output = await this._run?.(input, context)
+      await this.stopResolvers?.promise
+      const output = await this.run?.(input, context)
       this.output = output
       this.status = RUN_STATUS.SUCCESS
       await this.pauseResolvers?.promise
+      await this.stopResolvers?.promise
       snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -574,7 +672,6 @@ export class Step {
   }
   async pause() {
     try {
-      await this.preloadPromise
       if (this.status !== RUN_STATUS.RUNNING) {
         return this
       }
@@ -602,6 +699,32 @@ export class Step {
       this.status = RUN_STATUS.RUNNING
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
+      return this
+    } catch (error) {
+      this.status = RUN_STATUS.FAILED
+      this.error = (error as Error).message
+      const snapshot = this.getSnapshot()
+      this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
+      this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
+      throw error
+    }
+  }
+
+  async stop() {
+    try {
+      if (
+        this.status === RUN_STATUS.PENDING ||
+        this.status === RUN_STATUS.STOPPED ||
+        this.status === RUN_STATUS.SUCCESS ||
+        this.status === RUN_STATUS.FAILED
+      ) {
+        return this
+      }
+      this.status = RUN_STATUS.STOPPED
+      this.stopResolvers = Promise.withResolvers<void>()
+      const snapshot = this.getSnapshot()
+      this.eventHub.emit(STEP_EVENT.STOP, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
