@@ -456,7 +456,7 @@ export class Work {
     })
 
     step.on(STEP_EVENT.STOP, async (snapshot) => {
-      this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
+      this.eventHub.emit(STEP_EVENT.STOP, snapshot)
       if (this.status === RUN_STATUS.STOPPED) return
       this.status = RUN_STATUS.STOPPED
       const workSnapshot = this.getSnapshot()
@@ -653,10 +653,10 @@ export class Step {
       await this.pauseResolvers?.promise
       await this.stopResolvers?.promise
       const output = await this.run?.(input, context)
-      this.output = output
-      this.status = RUN_STATUS.SUCCESS
       await this.pauseResolvers?.promise
       await this.stopResolvers?.promise
+      this.output = output
+      this.status = RUN_STATUS.SUCCESS
       snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -695,8 +695,8 @@ export class Step {
       if (this.status !== RUN_STATUS.PAUSED) {
         return this
       }
-      this.pauseResolvers?.resolve()
       this.status = RUN_STATUS.RUNNING
+      this.pauseResolvers?.resolve()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
