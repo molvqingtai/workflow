@@ -562,6 +562,7 @@ export class Work {
         this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
         await Promise.all(this.steps.map((step) => step.resume()))
       } else {
+        await Promise.all(this.steps.map((step) => step.resume()))
         await this.start(this.input, { workflow: this.workflow })
       }
       snapshot = this.getSnapshot()
