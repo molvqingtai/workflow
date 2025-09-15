@@ -58,7 +58,9 @@ export const WORKFLOW_EVENT = {
   PAUSE: 'workflow:pause',
   RESUME: 'workflow:resume',
   STOP: 'workflow:stop',
-  CHANGE: 'workflow:change'
+  CHANGE: 'workflow:change',
+  ADD: 'workflow:add',
+  DELETE: 'workflow:delete'
 } as const
 
 export const WORK_EVENT = {
@@ -68,7 +70,9 @@ export const WORK_EVENT = {
   PAUSE: 'work:pause',
   RESUME: 'work:resume',
   STOP: 'work:stop',
-  CHANGE: 'work:change'
+  CHANGE: 'work:change',
+  ADD: 'work:add',
+  DELETE: 'work:delete'
 } as const
 
 export const STEP_EVENT = {
@@ -105,6 +109,8 @@ export type WorkEventMap = {
   [WORK_EVENT.RESUME]: (snapshot: WorkSnapshot) => void
   [WORK_EVENT.CHANGE]: (snapshot: WorkSnapshot) => void
   [WORK_EVENT.STOP]: (snapshot: WorkSnapshot) => void
+  [WORK_EVENT.ADD]: (snapshot: WorkSnapshot) => void
+  [WORK_EVENT.DELETE]: (snapshot: WorkSnapshot) => void
 } & StepEventMap
 
 export type WorkflowEventMap = {
@@ -115,6 +121,8 @@ export type WorkflowEventMap = {
   [WORKFLOW_EVENT.RESUME]: (snapshot: WorkflowSnapshot) => void
   [WORKFLOW_EVENT.CHANGE]: (snapshot: WorkflowSnapshot) => void
   [WORKFLOW_EVENT.STOP]: (snapshot: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.ADD]: (snapshot: WorkflowSnapshot) => void
+  [WORKFLOW_EVENT.DELETE]: (snapshot: WorkflowSnapshot) => void
 } & WorkEventMap
 
 export interface WorkflowOptions {
@@ -251,6 +259,8 @@ export class Workflow {
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
     })
 
+    this.eventHub.emit(WORKFLOW_EVENT.ADD, this.getSnapshot())
+    this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
     return this
   }
 
@@ -266,6 +276,9 @@ export class Workflow {
       }
       return true
     })
+    this.eventHub.emit(WORKFLOW_EVENT.DELETE, this.getSnapshot())
+    this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
+    return this
   }
 
   async start(input?: any) {
@@ -458,6 +471,10 @@ export class Work {
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
     })
+
+    this.eventHub.emit(WORK_EVENT.ADD, this.getSnapshot())
+    this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
+    return this
   }
 
   delete(stepId: string) {
@@ -468,6 +485,9 @@ export class Work {
       }
       return true
     })
+    this.eventHub.emit(WORK_EVENT.DELETE, this.getSnapshot())
+    this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
+    return this
   }
 
   query(stepId: string) {
