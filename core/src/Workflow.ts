@@ -158,7 +158,7 @@ export interface StepOptions {
   output?: any
   error?: string
   meta?: Record<string, any>
-  run: (input: any, context?: StepContext) => Promise<any>
+  run: (input: any, context: RunContext) => Promise<any>
 }
 
 export interface WorkContext {
@@ -169,6 +169,8 @@ export interface StepContext {
   workflow?: Workflow
   work?: Work
 }
+
+export type RunContext = StepContext & Step
 
 export class Workflow {
   id: string
@@ -628,7 +630,7 @@ export class Step {
   readonly eventHub: EventHub<StepEventMap>
   private pauseResolvers?: PromiseWithResolvers<void>
   private stopResolvers?: PromiseWithResolvers<void>
-  private run?: (input: any, context?: StepContext) => Promise<any>
+  private run?: (input: any, context: RunContext) => Promise<any>
   private runned: boolean = false
   constructor(options?: StepOptions) {
     this.id = options?.id ?? uuid()
@@ -675,7 +677,7 @@ export class Step {
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       await this.pauseResolvers?.promise
       await this.stopResolvers?.promise
-      const output = await this.run?.(input, context)
+      const output = await this.run?.(input, { ...context, ...this })
       await this.pauseResolvers?.promise
       await this.stopResolvers?.promise
       this.output = output
