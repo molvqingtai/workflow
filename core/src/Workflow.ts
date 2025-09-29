@@ -558,7 +558,7 @@ export class Work {
         return this
       }
       this.status = RUN_STATUS.RUNNING
-      let snapshot = this.getSnapshot()
+      const snapshot = this.getSnapshot()
       if (this.running) {
         this.eventHub.emit(WORK_EVENT.RESUME, snapshot)
         this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -567,9 +567,6 @@ export class Work {
         await Promise.all(this.steps.map((step) => step.resume()))
         await this.start(this.input, { workflow: this.workflow })
       }
-      snapshot = this.getSnapshot()
-      this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
-      this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       return this
     } catch (error) {
       this.status = RUN_STATUS.FAILED
