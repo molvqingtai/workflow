@@ -10,8 +10,8 @@
       "@semantic-release/exec",
       {
         "prepareCmd": "cp -f ../README.md README.md",
-        "successCmd": "git checkout -- README.md",
-        "failCmd": "git checkout -- README.md"
+        "successCmd": "(git ls-files README.md --error-unmatch >/dev/null 2>&1 && git checkout -- README.md) || rm -f README.md",
+        "failCmd": "(git ls-files README.md --error-unmatch >/dev/null 2>&1 && git checkout -- README.md) || rm -f README.md"
       }
     ],
     "@semantic-release/npm",
