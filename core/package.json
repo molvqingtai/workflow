@@ -1,6 +1,6 @@
 {
   "name": "@whatfa/workflow",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Type-safe workflow primitives for long-running TypeScript agents.",
   "type": "module",
   "main": "./dist/index.js",

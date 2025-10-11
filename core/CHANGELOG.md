@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/molvqingtai/workflow/compare/v1.0.0...v1.0.1) (2025-10-11)
+
+
+### Bug Fixes
+
+* release process lacks dependencies ([4bf6635](https://github.com/molvqingtai/workflow/commit/4bf66353c8fc71ba95c1ece73e0866ced2fabb9d))
+
 # 1.0.0 (2025-10-11)
 
 
