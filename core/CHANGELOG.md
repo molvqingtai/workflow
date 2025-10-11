@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/molvqingtai/workflow/compare/v1.0.3...v1.0.4) (2025-10-11)
+
+
+### Bug Fixes
+
+* fix release flows ([1dd8faf](https://github.com/molvqingtai/workflow/commit/1dd8fafc8178fa2e6e7223ef3ba6495298dabb53))
+
 ## [1.0.3](https://github.com/molvqingtai/workflow/compare/v1.0.2...v1.0.3) (2025-10-11)
 
 
