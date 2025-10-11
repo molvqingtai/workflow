@@ -9,7 +9,9 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "cp -f ../README.md ./README.md",
+        "prepareCmd": "cp -f ../README.md README.md",
+        "successCmd": "git checkout -- README.md",
+        "failCmd": "git checkout -- README.md"
       }
     ],
     "@semantic-release/npm",
