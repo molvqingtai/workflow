@@ -4,6 +4,17 @@
   "description": "Type-safe workflow primitives for long-running TypeScript agents.",
   "main": "./dist/index.js",
   "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsdown src/index.ts --dts --format esm --sourcemap --watch",
     "build": "tsdown src/index.ts --dts --format esm --sourcemap --minify --clean",

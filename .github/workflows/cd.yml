@@ -80,6 +80,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
       - run: pnpm semantic-release
+        working-directory: core
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.WORKFLOW_NPM_TOKEN }}

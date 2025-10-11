@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "vitest",
+    "test": "vitest --typecheck",
     "lint": "eslint --fix --cache",
     "check": "tsc --noEmit"
   },
