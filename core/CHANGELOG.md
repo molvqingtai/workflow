@@ -1,3 +1,11 @@
+## [1.0.2](https://github.com/molvqingtai/workflow/compare/v1.0.1...v1.0.2) (2025-10-11)
+
+
+### Bug Fixes
+
+* cp readme to dist ([e3cf280](https://github.com/molvqingtai/workflow/commit/e3cf2800a73435dc7aaacc8af0ba81d325e8e6a8))
+* release process lacks dependencies ([137b97a](https://github.com/molvqingtai/workflow/commit/137b97af7918c87ecebcb68e8c3e62ae523037c9))
+
 ## [1.0.1](https://github.com/molvqingtai/workflow/compare/v1.0.0...v1.0.1) (2025-10-11)
 
 
