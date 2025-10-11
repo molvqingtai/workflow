@@ -1,6 +1,10 @@
 import EventHub from './EventHub'
 import uuid from './utils/uuid'
 
+type UnknownRecord = Record<string, unknown>
+
+type MaybePromise<T> = T | Promise<T>
+
 export const RUN_STATUS = {
   PENDING: 'pending',
   RUNNING: 'running',
@@ -12,43 +16,53 @@ export const RUN_STATUS = {
 
 export type RunStatus = (typeof RUN_STATUS)[keyof typeof RUN_STATUS]
 
-export interface WorkflowSnapshot {
-  id: string
-  name?: string
-  description?: string
-  type: 'workflow'
-  status: RunStatus
-  input?: any
-  output?: any
-  error?: string
-  meta?: Record<string, any>
-  works: Array<WorkSnapshot>
-}
-
-export interface WorkSnapshot {
-  id: string
-  name?: string
-  description?: string
-  type: 'work'
-  status: RunStatus
-  input?: any
-  output?: any
-  error?: string
-  meta?: Record<string, any>
-  steps: Array<StepSnapshot>
-}
-
-export interface StepSnapshot {
+export interface StepSnapshot<Input = unknown, Output = unknown, Meta extends UnknownRecord = UnknownRecord> {
   id: string
   name?: string
   description?: string
   type: 'step'
   status: RunStatus
-  input?: any
-  output?: any
-  context?: any
+  input?: Input
+  output?: Output
+  context?: unknown
   error?: string
-  meta?: Record<string, any>
+  meta?: Meta
+}
+
+export interface WorkSnapshot<
+  Input = unknown,
+  Output = unknown,
+  Meta extends UnknownRecord = UnknownRecord,
+  StepSnap extends StepSnapshot = StepSnapshot
+> {
+  id: string
+  name?: string
+  description?: string
+  type: 'work'
+  status: RunStatus
+  input?: Input
+  output?: Output
+  error?: string
+  meta?: Meta
+  steps: Array<StepSnap>
+}
+
+export interface WorkflowSnapshot<
+  Input = unknown,
+  Output = unknown,
+  Meta extends UnknownRecord = UnknownRecord,
+  WorkSnap extends WorkSnapshot = WorkSnapshot
+> {
+  id: string
+  name?: string
+  description?: string
+  type: 'workflow'
+  status: RunStatus
+  input?: Input
+  output?: Output
+  error?: string
+  meta?: Meta
+  works: Array<WorkSnap>
 }
 
 export const WORKFLOW_EVENT = {
@@ -87,105 +101,124 @@ export const STEP_EVENT = {
 
 export type WorkflowEvent = keyof typeof WORKFLOW_EVENT
 
-export type WorkEvent = keyof typeof WORKFLOW_EVENT
+export type WorkEvent = keyof typeof WORK_EVENT
 
 export type StepEvent = keyof typeof STEP_EVENT
 
-export type StepEventMap = {
-  [STEP_EVENT.START]: (snapshot: StepSnapshot) => void
-  [STEP_EVENT.SUCCESS]: (snapshot: StepSnapshot) => void
-  [STEP_EVENT.FAILED]: (snapshot: StepSnapshot) => void
-  [STEP_EVENT.PAUSE]: (snapshot: StepSnapshot) => void
-  [STEP_EVENT.RESUME]: (snapshot: StepSnapshot) => void
-  [STEP_EVENT.CHANGE]: (snapshot: StepSnapshot) => void
-  [STEP_EVENT.STOP]: (snapshot: StepSnapshot) => void
+export type StepEventMap<StepSnap extends StepSnapshot = StepSnapshot> = {
+  [STEP_EVENT.START]: (snapshot: StepSnap) => void
+  [STEP_EVENT.SUCCESS]: (snapshot: StepSnap) => void
+  [STEP_EVENT.FAILED]: (snapshot: StepSnap) => void
+  [STEP_EVENT.PAUSE]: (snapshot: StepSnap) => void
+  [STEP_EVENT.RESUME]: (snapshot: StepSnap) => void
+  [STEP_EVENT.CHANGE]: (snapshot: StepSnap) => void
+  [STEP_EVENT.STOP]: (snapshot: StepSnap) => void
 }
 
-export type WorkEventMap = {
-  [WORK_EVENT.START]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.SUCCESS]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.FAILED]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.PAUSE]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.RESUME]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.CHANGE]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.STOP]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.ADD]: (snapshot: WorkSnapshot) => void
-  [WORK_EVENT.DELETE]: (snapshot: WorkSnapshot) => void
-} & StepEventMap
+export type WorkEventMap<WorkSnap extends WorkSnapshot = WorkSnapshot, StepSnap extends StepSnapshot = StepSnapshot> = {
+  [WORK_EVENT.START]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.SUCCESS]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.FAILED]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.PAUSE]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.RESUME]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.CHANGE]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.STOP]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.ADD]: (snapshot: WorkSnap) => void
+  [WORK_EVENT.DELETE]: (snapshot: WorkSnap) => void
+} & StepEventMap<StepSnap>
 
-export type WorkflowEventMap = {
-  [WORKFLOW_EVENT.START]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.SUCCESS]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.FAILED]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.PAUSE]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.RESUME]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.CHANGE]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.STOP]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.ADD]: (snapshot: WorkflowSnapshot) => void
-  [WORKFLOW_EVENT.DELETE]: (snapshot: WorkflowSnapshot) => void
-} & WorkEventMap
+export type WorkflowEventMap<
+  WorkflowSnap extends WorkflowSnapshot = WorkflowSnapshot,
+  WorkSnap extends WorkSnapshot = WorkSnapshot,
+  StepSnap extends StepSnapshot = StepSnapshot
+> = {
+  [WORKFLOW_EVENT.START]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.SUCCESS]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.FAILED]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.PAUSE]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.RESUME]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.CHANGE]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.STOP]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.ADD]: (snapshot: WorkflowSnap) => void
+  [WORKFLOW_EVENT.DELETE]: (snapshot: WorkflowSnap) => void
+} & WorkEventMap<WorkSnap, StepSnap>
 
-export interface WorkflowOptions {
+export interface WorkflowOptions<
+  Input = unknown,
+  Output = Array<Work<any, any, any>>,
+  Meta extends UnknownRecord = UnknownRecord
+> {
   id?: string
   name?: string
   description?: string
   status?: RunStatus
-  input?: any
-  output?: any
+  input?: Input
+  output?: Output
   error?: string
-  meta?: Record<string, any>
-  works: Work[]
+  meta?: Meta
+  works: Array<Work<any, any, any>>
 }
 
-export interface WorkOptions {
+export interface WorkOptions<Input = unknown, Output = Input, Meta extends UnknownRecord = UnknownRecord> {
   id?: string
   name?: string
   description?: string
   status?: RunStatus
-  input?: any
-  output?: any
+  input?: Input
+  output?: Output
   error?: string
-  meta?: Record<string, any>
-  steps: Step[]
+  meta?: Meta
+  steps: Array<Step<any, any, any>>
 }
 
-export interface StepOptions {
+export interface StepOptions<Input = unknown, Output = unknown, Meta extends UnknownRecord = UnknownRecord> {
   id?: string
   name?: string
   description?: string
   status?: RunStatus
-  input?: any
-  output?: any
+  input?: Input
+  output?: Output
   error?: string
-  meta?: Record<string, any>
-  run: (input: any, context: RunContext) => Promise<any>
+  meta?: Meta
+  run: (input: Input, context: RunContext<Step<Input, Output, Meta>>) => MaybePromise<Output>
 }
 
-export interface WorkContext {
-  workflow?: Workflow
+export interface WorkContext<WF extends Workflow<any, any, any> | undefined = Workflow<any, any, any>> {
+  workflow?: WF
 }
 
-export interface StepContext {
-  workflow?: Workflow
-  work?: Work
+export interface StepContext<
+  WF extends Workflow<any, any, any> | undefined = Workflow<any, any, any>,
+  W extends Work<any, any, any> | undefined = Work<any, any, any>
+> {
+  workflow?: WF
+  work?: W
 }
 
-export type RunContext = StepContext & Step
+export type RunContext<
+  S extends Step<any, any, any> = Step,
+  WF extends Workflow<any, any, any> | undefined = Workflow<any, any, any>,
+  W extends Work<any, any, any> | undefined = Work<any, any, any>
+> = StepContext<WF, W> & S
 
-export class Workflow {
+export class Workflow<
+  Input = unknown,
+  Output = Array<Work<any, any, any>>,
+  Meta extends UnknownRecord = UnknownRecord
+> {
   id: string
   readonly type = 'workflow'
   name?: string
   description?: string
-  input: any
-  output?: any
+  input?: Input
+  output?: Output
   error?: string
   status: RunStatus
-  meta?: Record<string, any>
-  works: Work[] = []
-  readonly eventHub: EventHub<WorkflowEventMap>
+  meta?: Meta
+  works: Array<Work<any, any, any>> = []
+  readonly eventHub: EventHub<WorkflowEventMap<WorkflowSnapshot<Input, Output, Meta>, WorkSnapshot, StepSnapshot>>
 
-  constructor(options?: WorkflowOptions) {
+  constructor(options?: WorkflowOptions<Input, Output, Meta>) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
     this.description = options?.description
@@ -194,11 +227,11 @@ export class Workflow {
     this.output = options?.output
     this.error = options?.error
     this.meta = options?.meta
-    this.eventHub = new EventHub<WorkflowEventMap>()
+    this.eventHub = new EventHub<WorkflowEventMap<WorkflowSnapshot<Input, Output, Meta>, WorkSnapshot, StepSnapshot>>()
     options?.works.forEach((work) => this.add(work))
   }
 
-  getSnapshot(): WorkflowSnapshot {
+  getSnapshot(): WorkflowSnapshot<Input, Output, Meta, WorkSnapshot> {
     return {
       id: this.id,
       name: this.name,
@@ -213,7 +246,7 @@ export class Workflow {
     }
   }
 
-  add(work: Work) {
+  add(work: Work<any, any, any>) {
     work.workflow = this
     this.works = [...this.works.filter((w) => w.id !== work.id), work]
     work.on(WORK_EVENT.START, (snapshot) => {
@@ -261,8 +294,9 @@ export class Workflow {
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
     })
 
-    this.eventHub.emit(WORKFLOW_EVENT.ADD, this.getSnapshot())
-    this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
+    const snapshot = this.getSnapshot()
+    this.eventHub.emit(WORKFLOW_EVENT.ADD, snapshot)
+    this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
     return this
   }
 
@@ -283,7 +317,7 @@ export class Workflow {
     return this
   }
 
-  async start(input?: any) {
+  async start(input?: Input) {
     try {
       if (
         this.status === RUN_STATUS.FAILED ||
@@ -297,7 +331,9 @@ export class Workflow {
       let snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.START, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
-      this.output = await Promise.all(this.works.map((work) => work.start(input, { workflow: this })))
+      this.output = (await Promise.all(
+        this.works.map((work) => work.start(input as any, { workflow: this }))
+      )) as Output
       this.status = RUN_STATUS.SUCCESS
       snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.SUCCESS, snapshot)
@@ -380,21 +416,21 @@ export class Workflow {
   }
 }
 
-export class Work {
+export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = UnknownRecord> {
   id: string
   readonly type = 'work'
   name?: string
   description?: string
-  input: any
-  output: any
+  input?: Input
+  output?: Output
   error?: string
-  meta?: Record<string, any>
+  meta?: Meta
   status: RunStatus = RUN_STATUS.PENDING
-  steps: Step[] = []
-  workflow?: Workflow
-  readonly eventHub: EventHub<WorkEventMap>
+  steps: Step<any, any, any>[] = []
+  workflow?: Workflow<any, any, any>
+  readonly eventHub: EventHub<WorkEventMap<WorkSnapshot<Input, Output, Meta>, StepSnapshot>>
   private running: boolean = false
-  constructor(options?: WorkOptions) {
+  constructor(options?: WorkOptions<Input, Output, Meta>) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
     this.description = options?.description
@@ -403,11 +439,11 @@ export class Work {
     this.output = options?.output
     this.error = options?.error
     this.meta = options?.meta
-    this.eventHub = new EventHub<WorkEventMap>()
+    this.eventHub = new EventHub<WorkEventMap<WorkSnapshot<Input, Output, Meta>, StepSnapshot>>()
     options?.steps.forEach((step) => this.add(step))
   }
 
-  getSnapshot(): WorkSnapshot {
+  getSnapshot(): WorkSnapshot<Input, Output, Meta> {
     return {
       id: this.id,
       name: this.name,
@@ -422,7 +458,7 @@ export class Work {
     }
   }
 
-  add(step: Step) {
+  add(step: Step<any, any, any>) {
     step.work = this
     this.steps = [...this.steps.filter((s) => s.id !== step.id), step]
     step.on(STEP_EVENT.START, async (snapshot) => {
@@ -496,7 +532,7 @@ export class Work {
     return this.steps.find((step) => step.id === stepId)
   }
 
-  async start(input: any, context?: WorkContext) {
+  async start(input: Input, context?: WorkContext) {
     try {
       this.running = true
       if (
@@ -511,13 +547,13 @@ export class Work {
       let snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.START, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
-      let currentInput = input
+      let currentInput: unknown = input
       for (const step of this.steps) {
-        const res = await step.start(currentInput, { ...context, work: this })
+        const res = await step.start(currentInput as any, { ...context, work: this })
         currentInput = res.output
       }
       this.status = RUN_STATUS.SUCCESS
-      this.output = currentInput
+      this.output = currentInput as Output
       snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -565,7 +601,7 @@ export class Work {
         await Promise.all(this.steps.map((step) => step.resume()))
       } else {
         await Promise.all(this.steps.map((step) => step.resume()))
-        await this.start(this.input, { workflow: this.workflow })
+        await this.start(this.input as Input, { workflow: this.workflow })
       }
       return this
     } catch (error) {
@@ -613,23 +649,23 @@ export class Work {
   }
 }
 
-export class Step {
+export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = UnknownRecord> {
   id: string
   readonly type = 'step'
   name?: string
   description?: string
-  input: any
-  output: any
+  input?: Input
+  output?: Output
   error?: string
-  meta?: any
+  meta?: Meta
   status: RunStatus = RUN_STATUS.PENDING
-  work?: Work
-  readonly eventHub: EventHub<StepEventMap>
+  work?: Work<any, any, any>
+  readonly eventHub: EventHub<StepEventMap<StepSnapshot<Input, Output, Meta>>>
   private pauseResolvers?: PromiseWithResolvers<void>
   private stopResolvers?: PromiseWithResolvers<void>
-  private run?: (input: any, context: RunContext) => Promise<any>
+  private run?: (input: Input, context: RunContext<Step<Input, Output, Meta>>) => MaybePromise<Output>
   private runned: boolean = false
-  constructor(options?: StepOptions) {
+  constructor(options?: StepOptions<Input, Output, Meta>) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
     this.description = options?.description
@@ -640,10 +676,10 @@ export class Step {
     this.meta = options?.meta
     this.run = options?.run
     this.runned = options?.status === RUN_STATUS.SUCCESS || options?.status === RUN_STATUS.FAILED
-    this.eventHub = new EventHub<StepEventMap>()
+    this.eventHub = new EventHub<StepEventMap<StepSnapshot<Input, Output, Meta>>>()
   }
 
-  getSnapshot(): StepSnapshot {
+  getSnapshot(): StepSnapshot<Input, Output, Meta> {
     return {
       id: this.id,
       name: this.name,
@@ -657,7 +693,7 @@ export class Step {
     }
   }
 
-  async start(input: any, context?: StepContext) {
+  async start(input: Input, context?: StepContext) {
     try {
       if (
         this.runned ||
@@ -674,7 +710,7 @@ export class Step {
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       await this.pauseResolvers?.promise
       await this.stopResolvers?.promise
-      const output = await this.run?.(input, { ...context, ...this })
+      const output = await this.run?.(input, { ...context, ...this } as RunContext<Step<Input, Output, Meta>>)
       await this.pauseResolvers?.promise
       await this.stopResolvers?.promise
       this.output = output
