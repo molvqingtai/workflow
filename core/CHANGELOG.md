@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/molvqingtai/workflow/compare/v1.0.4...v1.0.5) (2025-10-11)
+
+
+### Bug Fixes
+
+* fix badge link ([77b121a](https://github.com/molvqingtai/workflow/commit/77b121a9a144288509cbf88d7bc45fe423cc2923))
+
 ## [1.0.4](https://github.com/molvqingtai/workflow/compare/v1.0.3...v1.0.4) (2025-10-11)
 
 
