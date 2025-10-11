@@ -19,7 +19,7 @@
     "dev": "tsdown src/index.ts --dts --format esm --sourcemap --watch",
     "build": "npm-run-all -s build:bundle copy:readme",
     "build:bundle": "tsdown src/index.ts --dts --format esm --sourcemap --minify --clean",
-    "copy:readme": "mkdir -p dist && cp -f ../README.md dist/README.md",
+    "copy:readme": "cp -f ../README.md dist/README.md",
     "lint": "eslint --fix --cache",
     "check": "tsc --noEmit"
   },
