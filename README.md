@@ -2,7 +2,7 @@
 
 Type-safe workflow primitives for long-running TypeScript agents.
 
-[![version](https://img.shields.io/github/v/release/molvqingtai/@whatfa/workflow)](https://www.npmjs.com/package/@whatfa/workflow) [![workflow](https://github.com/molvqingtai/@whatfa/workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/molvqingtai/workflow/actions) [![download](https://img.shields.io/npm/dt/@whatfa/workflow)](https://www.npmjs.com/package/@whatfa/workflow) [![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/@whatfa/workflow)](https://www.npmjs.com/package/@whatfa/workflow) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/molvqingtai/workflow)
+[![version](https://img.shields.io/github/v/release/molvqingtai/workflow)](https://www.npmjs.com/package/@whatfa/workflow) [![workflow](https://github.com/molvqingtai/workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/molvqingtai/workflow/actions) [![download](https://img.shields.io/npm/dt/@whatfa/workflow)](https://www.npmjs.com/package/@whatfa/workflow) [![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/@whatfa/workflow)](https://www.npmjs.com/package/@whatfa/workflow) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/molvqingtai/workflow)
 
 ## Introduction
 Workflow is a lightweight orchestration runtime that models long-lived processes as nested `Workflow → Work → Step` objects. Each layer tracks status, input/output payloads, and metadata, enabling you to observe and control complex agent pipelines. The core package is written in TypeScript with strong generic typing so callers can describe the shape of inputs, outputs, and metadata and receive inference-safe snapshots back.
