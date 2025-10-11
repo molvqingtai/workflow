@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Workflow, Work, Step, RUN_STATUS } from 'workflow'
+import { Workflow, Work, Step, RUN_STATUS } from '@whatfa/workflow'
 
 describe('事件系统测试', () => {
   describe('Step级别事件', () => {
@@ -14,7 +14,7 @@ describe('事件系统测试', () => {
         }
       })
 
-      // 监听所有事件
+      // Listen to every step event
       step.on('step:start', () => events.push('step:start'))
       step.on('step:success', () => events.push('step:success'))
 
@@ -103,11 +103,11 @@ describe('事件系统测试', () => {
         works: [work]
       })
 
-      // 监听Work事件
+      // Listen for work events
       work.on('work:start', () => events.push('work:start'))
       work.on('work:success', () => events.push('work:success'))
 
-      // 监听Step事件（应该冒泡到Work）
+      // Listen for step events (they should bubble to the work)
       work.on('step:start', () => events.push('step:start'))
       work.on('step:success', () => events.push('step:success'))
 
@@ -139,7 +139,7 @@ describe('事件系统测试', () => {
         works: [work]
       })
 
-      // 监听所有层级事件
+      // Listen for events across every level
       workflow.on('workflow:start', () => events.push('workflow:start'))
       workflow.on('workflow:success', () => events.push('workflow:success'))
       workflow.on('work:start', () => events.push('work:start'))
@@ -228,7 +228,7 @@ describe('事件系统测试', () => {
           work: new Work({ id: 'dummy', steps: [] })
         }
 
-        // 开始执行然后停止
+        // Start execution and then stop it
         const runPromise = step.start(10, context)
         await new Promise((resolve) => setTimeout(resolve, 50))
         await step.stop()
@@ -237,7 +237,7 @@ describe('事件系统测试', () => {
         expect(events).toContain('step:change')
         expect(step.status).toBe(RUN_STATUS.STOPPED)
 
-        // 不等待被停止的执行，因为它会永远等待
+        // Do not await the stopped execution because it would hang forever
       })
 
       it('应该正确触发Work stop事件', async () => {
@@ -265,17 +265,17 @@ describe('事件系统测试', () => {
         work.on('work:change', () => events.push('work:change'))
         work.on('step:stop', () => events.push('step:stop'))
 
-        // 开始执行然后停止work
+        // Start execution and then stop the work
         const runPromise = workflow.start(10)
         await new Promise((resolve) => setTimeout(resolve, 50))
         await work.stop()
 
         expect(events).toContain('work:stop')
         expect(events).toContain('work:change')
-        // step:stop 事件可能不会被触发，因为step需要在RUNNING或PAUSED状态才能被停止
+        // The step:stop event may not fire because the step must be RUNNING or PAUSED to stop it
         expect(work.status).toBe(RUN_STATUS.STOPPED)
 
-        // 不等待被停止的执行，因为它会永远等待
+        // Do not await the stopped execution because it would hang forever
       })
 
       it('应该正确触发Workflow stop事件', async () => {
@@ -304,7 +304,7 @@ describe('事件系统测试', () => {
         workflow.on('work:stop', () => events.push('work:stop'))
         workflow.on('step:stop', () => events.push('step:stop'))
 
-        // 开始执行然后停止workflow
+        // Start execution and then stop the workflow
         const runPromise = workflow.start(10)
         await new Promise((resolve) => setTimeout(resolve, 50))
         await workflow.stop()
@@ -312,10 +312,10 @@ describe('事件系统测试', () => {
         expect(events).toContain('workflow:stop')
         expect(events).toContain('workflow:change')
         expect(events).toContain('work:stop')
-        // step:stop 事件可能不会被触发，因为step需要在RUNNING或PAUSED状态才能被停止
+        // The step:stop event may not fire because the step must be RUNNING or PAUSED to stop it
         expect(workflow.status).toBe(RUN_STATUS.STOPPED)
 
-        // 不等待被停止的执行，因为它会永远等待
+        // Do not await the stopped execution because it would hang forever
       })
 
       it('stop事件应该携带正确的快照数据', async () => {
@@ -338,7 +338,7 @@ describe('事件系统测试', () => {
           work: new Work({ id: 'dummy', steps: [] })
         }
 
-        // 开始执行然后停止
+        // Start execution and then stop it
         const runPromise = step.start(15, context)
         await new Promise((resolve) => setTimeout(resolve, 50))
         await step.stop()
@@ -348,7 +348,7 @@ describe('事件系统测试', () => {
         expect(eventSnapshot.status).toBe(RUN_STATUS.STOPPED)
         expect(eventSnapshot.input).toBe(15)
 
-        // 不等待被停止的执行，因为它会永远等待
+        // Do not await the stopped execution because it would hang forever
       })
 
       it('停止已完成的组件不应该触发stop事件', async () => {
@@ -367,14 +367,14 @@ describe('事件系统测试', () => {
           work: new Work({ id: 'dummy', steps: [] })
         }
 
-        // 先完成执行
+        // Complete execution first
         await step.start(10, context)
         expect(step.status).toBe('success')
 
-        // 清空事件数组
+        // Clear captured events
         events.length = 0
 
-        // 尝试停止已完成的step（应该无操作）
+        // Attempt to stop the completed step (should no-op)
         await step.stop()
 
         expect(events).not.toContain('step:stop')
@@ -400,18 +400,18 @@ describe('事件系统测试', () => {
           work: new Work({ id: 'dummy', steps: [] })
         }
 
-        // 先让执行失败
+        // Force the execution to fail first
         try {
           await step.start(10, context)
         } catch (error) {
-          // 忽略错误
+          // Ignore the error
         }
         expect(step.status).toBe('failed')
 
-        // 清空事件数组
+        // Clear captured events
         events.length = 0
 
-        // 尝试停止失败的step（应该无操作）
+        // Attempt to stop the failed step (should no-op)
         await step.stop()
 
         expect(events).not.toContain('step:stop')

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { Workflow, Work, Step, RUN_STATUS } from 'workflow'
+import { Workflow, Work, Step, RUN_STATUS } from '@whatfa/workflow'
+import type { RunStatus } from '@whatfa/workflow'
+
+const asNumber = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined)
 
 describe('完整流程集成测试', () => {
   describe('Workflow到Step的完整执行流程', () => {
@@ -34,13 +37,13 @@ describe('完整流程集成测试', () => {
       expect(workflow.getSnapshot().status).toBe(RUN_STATUS.PENDING)
       const result = await workflow.start(5)
 
-      // 验证完整执行结果
+      // Validate the overall execution result
       expect(result.status).toBe(RUN_STATUS.SUCCESS)
       expect(result.input).toBe(5)
       expect(result.output).toHaveLength(1)
       expect(result.works[0].output).toBe(20) // (5 * 2) + 10
 
-      // 验证Step级别的状态
+      // Validate step-level state
       expect(step1.status).toBe(RUN_STATUS.SUCCESS)
       expect(step1.input).toBe(5)
       expect(step1.output).toBe(10)
@@ -82,33 +85,33 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(10)
 
-      // 等待执行开始
+      // Wait for execution to begin
       await new Promise((resolve) => setTimeout(resolve, 50))
       expect(step1Started).toBe(true)
 
-      // 暂停workflow
+      // Pause the workflow
       const pauseResult = await workflow.pause()
       expect(pauseResult.status).toBe(RUN_STATUS.PAUSED)
 
-      // 验证所有组件都被暂停
+      // Verify every component is paused
       expect(work.status).toBe(RUN_STATUS.PAUSED)
       expect(step1.status).toBe(RUN_STATUS.PAUSED)
 
-      // 恢复执行
+      // Resume execution
       const resumeResult = await workflow.resume()
       expect(resumeResult.status).toBe(RUN_STATUS.RUNNING)
 
-      // 等待执行完成
+      // Wait for the run to complete
       const finalResult = await runPromise
       expect(finalResult.status).toBe(RUN_STATUS.SUCCESS)
       expect(finalResult.works[0].output).toBe(25) // (10 * 2) + 5
     })
 
     it('应该能够从快照数据重建完整的Workflow状态', async () => {
-      // 创建一个执行过的workflow的快照数据
+      // Create snapshot data from a previously executed workflow
       const workflowSnapshot = {
         id: 'restored-workflow',
         name: 'Restored Workflow',
@@ -147,7 +150,7 @@ describe('完整流程集成测试', () => {
         ]
       }
 
-      // 从快照重建workflow
+      // Rebuild the workflow from the snapshot
       const restoredStep1 = new Step({
         id: 'restored-step-1',
         name: 'Restored Step 1',
@@ -185,14 +188,14 @@ describe('完整流程集成测试', () => {
         works: [restoredWork]
       })
 
-      // 验证恢复的状态
+      // Validate the restored workflow state
       expect(restoredWorkflow.status).toBe('success')
       expect(restoredWorkflow.input).toBe(100)
       expect(restoredWorkflow.works).toHaveLength(1)
       expect(restoredWorkflow.works[0].status).toBe('success')
       expect(restoredWorkflow.works[0].output).toBe(250)
 
-      // 验证Step级别的状态恢复
+      // Validate restored step state
       expect(restoredStep1.status).toBe('success')
       expect(restoredStep1.input).toBe(100)
       expect(restoredStep1.output).toBe(200)
@@ -201,7 +204,7 @@ describe('完整流程集成测试', () => {
       expect(restoredStep2.input).toBe(200)
       expect(restoredStep2.output).toBe(250)
 
-      // 验证能够生成正确的快照
+      // Confirm the snapshot is produced correctly
       const currentSnapshot = restoredWorkflow.getSnapshot()
       expect(currentSnapshot.id).toBe(workflowSnapshot.id)
       expect(currentSnapshot.status).toBe(workflowSnapshot.status)
@@ -224,7 +227,7 @@ describe('完整流程集成测试', () => {
 
       const work = new Work({
         id: 'error-work',
-        steps: [normalStep, errorStep] // error在第二个step
+        steps: [normalStep, errorStep] // error occurs at the second step
       })
 
       const workflow = new Workflow({
@@ -232,15 +235,15 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 执行应该失败
+      // Execution should fail
       await expect(workflow.start(10)).rejects.toThrow('Step execution failed')
 
-      // 验证错误状态传播
+      // Validate error state propagation
       expect(workflow.status).toBe(RUN_STATUS.FAILED)
       expect(work.status).toBe(RUN_STATUS.FAILED)
       expect(errorStep.status).toBe(RUN_STATUS.FAILED)
 
-      // 第一个step应该成功执行
+      // The first step should still succeed
       expect(normalStep.status).toBe(RUN_STATUS.SUCCESS)
       expect(normalStep.output).toBe(20)
     })
@@ -283,11 +286,11 @@ describe('完整流程集成测试', () => {
       const result = await workflow.start(10)
       const endTime = Date.now()
 
-      // 验证并行执行（应该接近100ms而不是150ms）
+      // Confirm parallel execution (should be ~100ms, not 150ms)
       const executionTime = endTime - startTime
-      expect(executionTime).toBeLessThan(130) // 给一些余量
+      expect(executionTime).toBeLessThan(130) // allow small buffer
 
-      // 验证结果
+      // Validate results
       expect(result.status).toBe(RUN_STATUS.SUCCESS)
       expect(result.output).toHaveLength(2)
       expect(work1.output).toBe(30) // 10 * 3
@@ -324,15 +327,15 @@ describe('完整流程集成测试', () => {
 
       await expect(workflow.start(5)).rejects.toThrow()
 
-      // workflow应该失败
+      // Workflow should fail
       expect(workflow.status).toBe(RUN_STATUS.FAILED)
 
-      // 成功的work应该完成
+      // Successful work should complete
       expect(work1.status).toBe(RUN_STATUS.SUCCESS)
       expect(successStep.status).toBe(RUN_STATUS.SUCCESS)
       expect(successStep.output).toBe(10)
 
-      // 失败的work应该失败
+      // Failing work should fail
       expect(work2.status).toBe(RUN_STATUS.FAILED)
       expect(errorStep.status).toBe(RUN_STATUS.FAILED)
     })
@@ -360,7 +363,7 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 监听所有层级的事件
+      // Listen for events across all levels
       workflow.on('workflow:start', () => allEvents.push('workflow:start'))
       workflow.on('workflow:success', () => allEvents.push('workflow:success'))
       workflow.on('work:start', () => allEvents.push('work:start'))
@@ -370,7 +373,7 @@ describe('完整流程集成测试', () => {
 
       await workflow.start(10)
 
-      // 验证事件触发顺序和完整性
+      // Verify the order and completeness of events
       expect(allEvents).toEqual([
         'workflow:start',
         'work:start',
@@ -402,7 +405,7 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 监听暂停/恢复事件
+      // Listen for pause/resume events
       workflow.on('workflow:pause', () => pauseResumeEvents.push('workflow:pause'))
       workflow.on('workflow:resume', () => pauseResumeEvents.push('workflow:resume'))
       workflow.on('work:pause', () => pauseResumeEvents.push('work:pause'))
@@ -417,7 +420,7 @@ describe('完整流程集成测试', () => {
       await workflow.resume()
       await runPromise
 
-      // 验证暂停/恢复事件传播
+      // Verify pause/resume propagation
       expect(pauseResumeEvents).toContain('step:pause')
       expect(pauseResumeEvents).toContain('work:pause')
       expect(pauseResumeEvents).toContain('workflow:pause')
@@ -429,7 +432,7 @@ describe('完整流程集成测试', () => {
 
   describe('暂停→快照恢复→继续执行流程', () => {
     it('应该能够在暂停后从快照恢复并继续执行', async () => {
-      // 第一阶段：创建并执行workflow，然后暂停
+      // Phase one: execute the workflow and then pause it
       const step1 = new Step({
         id: 'resume-step-1',
         run: async (input: number) => {
@@ -457,76 +460,84 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 开始执行并暂停
+      // Start execution and pause
       const runPromise = originalWorkflow.start(50)
-      await new Promise((resolve) => setTimeout(resolve, 50)) // 等待第一个step开始
+      await new Promise((resolve) => setTimeout(resolve, 50)) // wait for the first step to start
 
-      // 暂停
+      // Pause
       await originalWorkflow.pause()
       expect(originalWorkflow.status).toBe(RUN_STATUS.PAUSED)
       expect(work.status).toBe(RUN_STATUS.PAUSED)
       expect(step1.status).toBe(RUN_STATUS.PAUSED)
 
-      // 获取暂停时的快照
+      // Capture the snapshot while paused
       const pausedSnapshot = originalWorkflow.getSnapshot()
       expect(pausedSnapshot.status).toBe('paused')
       expect(pausedSnapshot.input).toBe(50)
 
-      // 第二阶段：模拟页面刷新，使用真实快照恢复workflow
-      // 从快照恢复时，paused状态应该转换为pending状态
-      const convertStatusToPending = (status: string) => (status === 'paused' ? 'pending' : status)
+      // Phase two: simulate a page refresh and restore from the real snapshot
+      // When restoring, convert paused status back to pending
+      const convertStatusToPending = (status: RunStatus): RunStatus =>
+        status === RUN_STATUS.PAUSED ? RUN_STATUS.PENDING : status
 
-      const restoredStep1 = new Step({
-        id: pausedSnapshot.works[0].steps[0].id,
-        name: pausedSnapshot.works[0].steps[0].name,
-        status: convertStatusToPending(pausedSnapshot.works[0].steps[0].status) as any,
-        input: pausedSnapshot.works[0].steps[0].input,
-        output: pausedSnapshot.works[0].steps[0].output,
+      const [step1Snapshot, step2Snapshot] = pausedSnapshot.works[0].steps
+      const workSnapshot = pausedSnapshot.works[0]
+
+      const restoredStep1 = new Step<number, number>({
+        id: step1Snapshot.id,
+        name: step1Snapshot.name,
+        status: convertStatusToPending(step1Snapshot.status),
+        input: typeof step1Snapshot.input === 'number' ? step1Snapshot.input : undefined,
+        output: typeof step1Snapshot.output === 'number' ? step1Snapshot.output : undefined,
         run: async (input: number) => {
           await new Promise((resolve) => setTimeout(resolve, 100))
           return input * 2
         }
       })
 
-      const restoredStep2 = new Step({
-        id: pausedSnapshot.works[0].steps[1].id,
-        name: pausedSnapshot.works[0].steps[1].name,
-        status: convertStatusToPending(pausedSnapshot.works[0].steps[1].status) as any,
-        input: pausedSnapshot.works[0].steps[1].input,
-        output: pausedSnapshot.works[0].steps[1].output,
+      const restoredStep2 = new Step<number, number>({
+        id: step2Snapshot.id,
+        name: step2Snapshot.name,
+        status: convertStatusToPending(step2Snapshot.status),
+        input: typeof step2Snapshot.input === 'number' ? step2Snapshot.input : undefined,
+        output: typeof step2Snapshot.output === 'number' ? step2Snapshot.output : undefined,
         run: async (input: number) => {
           await new Promise((resolve) => setTimeout(resolve, 100))
           return input + 10
         }
       })
 
-      const restoredWork = new Work({
-        id: pausedSnapshot.works[0].id,
-        name: pausedSnapshot.works[0].name,
-        status: convertStatusToPending(pausedSnapshot.works[0].status) as any,
-        input: pausedSnapshot.works[0].input,
-        output: pausedSnapshot.works[0].output,
+      const restoredWork = new Work<number, number>({
+        id: workSnapshot.id,
+        name: workSnapshot.name,
+        status: convertStatusToPending(workSnapshot.status),
+        input: typeof workSnapshot.input === 'number' ? workSnapshot.input : undefined,
+        output: typeof workSnapshot.output === 'number' ? workSnapshot.output : undefined,
         steps: [restoredStep1, restoredStep2]
       })
 
-      const restoredWorkflow = new Workflow({
+      const workflowOutput = Array.isArray(pausedSnapshot.output)
+        ? (pausedSnapshot.output as Work<number, number>[])
+        : undefined
+
+      const restoredWorkflow = new Workflow<number, Work<number, number>[]>({
         id: pausedSnapshot.id,
         name: pausedSnapshot.name,
-        status: convertStatusToPending(pausedSnapshot.status) as any,
-        input: pausedSnapshot.input,
-        output: pausedSnapshot.output,
+        status: convertStatusToPending(pausedSnapshot.status),
+        input: typeof pausedSnapshot.input === 'number' ? pausedSnapshot.input : undefined,
+        output: workflowOutput,
         works: [restoredWork]
       })
 
-      // 验证恢复的状态 - paused状态应该转换为pending
+      // Validate restored state: paused -> pending
       expect(restoredWorkflow.status).toBe('pending')
       expect(restoredWork.status).toBe('pending')
       expect(restoredStep1.status).toBe('pending')
 
-      // 第三阶段：重新执行workflow
+      // Phase three: rerun the workflow
       const finalResult = await restoredWorkflow.start(50)
 
-      // 验证最终结果
+      // Validate the final result
       expect(finalResult.status).toBe(RUN_STATUS.SUCCESS)
       expect(restoredWork.output).toBe(110) // (50 * 2) + 10
       expect(restoredStep1.status).toBe(RUN_STATUS.SUCCESS)
@@ -575,94 +586,103 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(10)
 
-      // 等待第一个step完成，第二个step开始
+      // Wait for step1 to finish and step2 to start
       await new Promise((resolve) => setTimeout(resolve, 50))
 
-      // 此时step1应该完成，step2正在执行
+      // At this point step1 is done and step2 is running
       expect(step1Executed).toBe(true)
       expect(step1.status).toBe(RUN_STATUS.SUCCESS)
       expect(step1.output).toBe(20)
 
-      // 暂停
+      // Pause execution
       await workflow.pause()
       expect(workflow.status).toBe(RUN_STATUS.PAUSED)
 
-      // 获取快照用于恢复
+      // Capture a snapshot for recovery
       const midExecutionSnapshot = workflow.getSnapshot()
 
-      // 验证快照包含了已完成的step1状态
+      // Verify the snapshot records step1 as completed
       expect(midExecutionSnapshot.works[0].steps[0].status).toBe('success')
       expect(midExecutionSnapshot.works[0].steps[0].output).toBe(20)
       expect(midExecutionSnapshot.works[0].steps[1].status).toBe('paused')
       expect(midExecutionSnapshot.works[0].steps[2].status).toBe('pending')
 
-      // 使用真实快照恢复 - success状态保持，paused状态改为pending
-      const convertStatusToPending = (status: string) => (status === 'paused' ? 'pending' : status)
+      // Restore from snapshot: keep success, convert paused to pending
+      const convertStatusToPending = (status: RunStatus): RunStatus =>
+        status === RUN_STATUS.PAUSED ? RUN_STATUS.PENDING : status
 
-      const recoveredStep1 = new Step({
-        id: midExecutionSnapshot.works[0].steps[0].id,
-        name: midExecutionSnapshot.works[0].steps[0].name,
-        status: convertStatusToPending(midExecutionSnapshot.works[0].steps[0].status) as any,
-        input: midExecutionSnapshot.works[0].steps[0].input,
-        output: midExecutionSnapshot.works[0].steps[0].output,
+      const [recoveredStepSnapshot1, recoveredStepSnapshot2, recoveredStepSnapshot3] =
+        midExecutionSnapshot.works[0].steps
+      const recoveredWorkSnapshot = midExecutionSnapshot.works[0]
+
+      const recoveredStep1 = new Step<number, number>({
+        id: recoveredStepSnapshot1.id,
+        name: recoveredStepSnapshot1.name,
+        status: convertStatusToPending(recoveredStepSnapshot1.status),
+        input: asNumber(recoveredStepSnapshot1.input),
+        output: asNumber(recoveredStepSnapshot1.output),
         run: async (input: number) => input * 2
       })
 
-      const recoveredStep2 = new Step({
-        id: midExecutionSnapshot.works[0].steps[1].id,
-        name: midExecutionSnapshot.works[0].steps[1].name,
-        status: convertStatusToPending(midExecutionSnapshot.works[0].steps[1].status) as any,
-        input: midExecutionSnapshot.works[0].steps[1].input,
-        output: midExecutionSnapshot.works[0].steps[1].output,
+      const recoveredStep2 = new Step<number, number>({
+        id: recoveredStepSnapshot2.id,
+        name: recoveredStepSnapshot2.name,
+        status: convertStatusToPending(recoveredStepSnapshot2.status),
+        input: asNumber(recoveredStepSnapshot2.input),
+        output: asNumber(recoveredStepSnapshot2.output),
         run: async (input: number) => {
           await new Promise((resolve) => setTimeout(resolve, 100))
           return input + 20
         }
       })
 
-      const recoveredStep3 = new Step({
-        id: midExecutionSnapshot.works[0].steps[2].id,
-        name: midExecutionSnapshot.works[0].steps[2].name,
-        status: convertStatusToPending(midExecutionSnapshot.works[0].steps[2].status) as any,
-        input: midExecutionSnapshot.works[0].steps[2].input,
-        output: midExecutionSnapshot.works[0].steps[2].output,
+      const recoveredStep3 = new Step<number, number>({
+        id: recoveredStepSnapshot3.id,
+        name: recoveredStepSnapshot3.name,
+        status: convertStatusToPending(recoveredStepSnapshot3.status),
+        input: asNumber(recoveredStepSnapshot3.input),
+        output: asNumber(recoveredStepSnapshot3.output),
         run: async (input: number) => input / 2
       })
 
-      const recoveredWork = new Work({
-        id: midExecutionSnapshot.works[0].id,
-        name: midExecutionSnapshot.works[0].name,
-        status: convertStatusToPending(midExecutionSnapshot.works[0].status) as any,
-        input: midExecutionSnapshot.works[0].input,
-        output: midExecutionSnapshot.works[0].output,
+      const recoveredWork = new Work<number, number>({
+        id: recoveredWorkSnapshot.id,
+        name: recoveredWorkSnapshot.name,
+        status: convertStatusToPending(recoveredWorkSnapshot.status),
+        input: asNumber(recoveredWorkSnapshot.input),
+        output: asNumber(recoveredWorkSnapshot.output),
         steps: [recoveredStep1, recoveredStep2, recoveredStep3]
       })
 
-      const recoveredWorkflow = new Workflow({
+      const midExecutionWorkflowOutput = Array.isArray(midExecutionSnapshot.output)
+        ? (midExecutionSnapshot.output as Work<number, number>[])
+        : undefined
+
+      const recoveredWorkflow = new Workflow<number, Work<number, number>[]>({
         id: midExecutionSnapshot.id,
         name: midExecutionSnapshot.name,
-        status: convertStatusToPending(midExecutionSnapshot.status) as any,
-        input: midExecutionSnapshot.input,
-        output: midExecutionSnapshot.output,
+        status: convertStatusToPending(midExecutionSnapshot.status),
+        input: asNumber(midExecutionSnapshot.input),
+        output: midExecutionWorkflowOutput,
         works: [recoveredWork]
       })
 
-      // 验证恢复状态：success保持不变，paused转为pending
-      expect(recoveredStep1.status).toBe('success') // 已完成的保持success
-      expect(recoveredStep2.status).toBe('pending') // paused -> pending
-      expect(recoveredStep3.status).toBe('pending') // 保持pending
+      // Verify restored statuses: success unchanged, paused becomes pending
+      expect(recoveredStep1.status).toBe('success') // completed step stays success
+      expect(recoveredStep2.status).toBe('pending') // paused becomes pending
+      expect(recoveredStep3.status).toBe('pending') // remains pending
 
-      // 重新执行workflow
+      // Replay the workflow
       const finalResult = await recoveredWorkflow.start(10)
 
-      // 验证最终结果
+      // Validate the final result
       expect(finalResult.status).toBe(RUN_STATUS.SUCCESS)
       expect(recoveredWork.output).toBe(20) // ((10 * 2) + 20) / 2 = 20
 
-      // 验证所有步骤都正确执行
+      // Verify every step ran correctly
       expect(recoveredStep1.status).toBe(RUN_STATUS.SUCCESS)
       expect(recoveredStep1.output).toBe(20)
       expect(recoveredStep2.status).toBe(RUN_STATUS.SUCCESS)
@@ -713,32 +733,32 @@ describe('完整流程集成测试', () => {
         works: [work1, work2]
       })
 
-      // 监听所有层级的stop事件
+      // Listen for stop events across every level
       const stopEvents: string[] = []
       workflow.on('workflow:stop', () => stopEvents.push('workflow:stop'))
       workflow.on('work:stop', () => stopEvents.push('work:stop'))
       workflow.on('step:stop', () => stopEvents.push('step:stop'))
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(5)
       await new Promise((resolve) => setTimeout(resolve, 50))
 
-      // 停止正在运行的workflow
+      // Stop the workflow while it is running
       await workflow.stop()
 
-      // 验证所有组件都被停止
+      // Verify every component is stopped
       expect(workflow.status).toBe(RUN_STATUS.STOPPED)
       expect(work1.status).toBe(RUN_STATUS.STOPPED)
       expect(work2.status).toBe(RUN_STATUS.STOPPED)
-      // 只有正在运行或暂停的step会被停止
-      // step2和step3可能还没开始运行，所以状态可能不变
+      // Only running or paused steps will be stopped
+      // step2 and step3 may not have started yet, so their status may stay unchanged
 
-      // 验证stop事件被正确触发
+      // Verify stop events fired as expected
       expect(stopEvents).toContain('workflow:stop')
       expect(stopEvents).toContain('work:stop')
-      // step可能没有触发stop事件，因为它必须在RUNNING或PAUSED状态才能被停止
+      // Steps may not emit stop because they must be RUNNING or PAUSED to stop
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
 
     it('应该能够停止特定的正在运行的Work', async () => {
@@ -773,23 +793,23 @@ describe('完整流程集成测试', () => {
         works: [work1, work2]
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(5)
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      // 只停止work1
+      // Stop only work1
       await work1.stop()
 
-      // 验证work1和其step被停止
+      // Verify work1 and its step are stopped
       expect(work1.status).toBe(RUN_STATUS.STOPPED)
       expect(step1.status).toBe(RUN_STATUS.STOPPED)
 
-      // work2应该继续执行并完成
+      // work2 should continue executing and finish
       await new Promise((resolve) => setTimeout(resolve, 100))
       expect(work2.status).toBe(RUN_STATUS.SUCCESS)
       expect(step2.status).toBe(RUN_STATUS.SUCCESS)
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
 
     it('不能停止已完成的组件', async () => {
@@ -811,21 +831,21 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 第一次执行并完成
+      // Execute once and finish
       await workflow.start(5)
       expect(workflow.status).toBe(RUN_STATUS.SUCCESS)
       expect(step.output).toBe(10)
 
-      // 尝试停止已完成的workflow（应该无操作）
+      // Attempt to stop the completed workflow (should no-op)
       await workflow.stop()
-      expect(workflow.status).toBe(RUN_STATUS.SUCCESS) // Workflow已完成，不能停止
-      expect(work.status).toBe(RUN_STATUS.SUCCESS) // Work已完成，不能停止
-      expect(step.status).toBe(RUN_STATUS.SUCCESS) // Step不能从SUCCESS状态停止
+      expect(workflow.status).toBe(RUN_STATUS.SUCCESS) // Workflow already completed, cannot stop
+      expect(work.status).toBe(RUN_STATUS.SUCCESS) // Work already completed, cannot stop
+      expect(step.status).toBe(RUN_STATUS.SUCCESS) // Step cannot be stopped once SUCCESS
 
-      // 由于workflow状态仍然是SUCCESS，不能重新启动
+      // Cannot restart because the workflow remains SUCCESS
       const secondResult = await workflow.start(10)
       expect(secondResult.status).toBe(RUN_STATUS.SUCCESS)
-      expect(secondResult.works[0].output).toBe(10) // 原来的输出保持不变
+      expect(secondResult.works[0].output).toBe(10) // previous output remains unchanged
       expect(step.output).toBe(10)
     })
 
@@ -848,21 +868,21 @@ describe('完整流程集成测试', () => {
         works: [work]
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(5)
 
-      // 等待执行开始然后暂停
+      // Wait for execution to begin, then pause
       await new Promise((resolve) => setTimeout(resolve, 50))
       await workflow.pause()
       expect(workflow.status).toBe(RUN_STATUS.PAUSED)
 
-      // 停止暂停中的workflow（现在Step也可以从PAUSED状态停止）
+      // Stop the paused workflow (steps can now stop from PAUSED)
       await workflow.stop()
       expect(workflow.status).toBe(RUN_STATUS.STOPPED)
       expect(work.status).toBe(RUN_STATUS.STOPPED)
       expect(step.status).toBe(RUN_STATUS.STOPPED)
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
   })
 })

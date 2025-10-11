@@ -5,28 +5,27 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "vitest --typecheck",
+    "test": "vitest",
     "lint": "eslint --fix --cache",
     "check": "tsc --noEmit"
   },
   "keywords": [],
   "author": "molvqingtai",
-  "license": "ISC",
-  "packageManager": "pnpm@10.5.2",
+  "license": "MIT",
   "dependencies": {
-    "workflow": "workspace:*"
+    "@whatfa/workflow": "workspace:*"
   },
   "devDependencies": {
-    "@eslint/js": "^9.33.0",
-    "@types/node": "^24.3.1",
-    "eslint": "^9.33.0",
+    "@eslint/js": "^9.37.0",
+    "@types/node": "^24.7.1",
+    "eslint": "^9.37.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "globals": "^16.3.0",
+    "globals": "^16.4.0",
     "prettier": "^3.6.2",
-    "tsdown": "^0.14.1",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.40.0",
+    "tsdown": "^0.15.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
     "vitest": "^3.2.4"
   },
   "publishConfig": {

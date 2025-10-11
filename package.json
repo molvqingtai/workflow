@@ -1,7 +1,7 @@
 {
-  "name": "workflow",
+  "name": "@whatfa/workflow",
   "version": "1.0.0",
-  "description": "",
+  "description": "Type-safe workflow primitives for long-running TypeScript agents.",
   "type": "module",
   "main": "core/dist/index.js",
   "scripts": {
@@ -16,26 +16,20 @@
     "check:tests": "pnpm --filter __tests__ check",
     "prepare": "husky"
   },
-  "keywords": [],
+  "keywords": [
+    "workflow",
+    "task"
+  ],
   "author": "molvqingtai",
   "license": "MIT",
-  "packageManager": "pnpm@10.5.2",
   "devDependencies": {
-    "@commitlint/cli": "^19.8.1",
-    "@commitlint/config-conventional": "^19.8.1",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "husky": "^9.1.7",
     "npm-run-all": "^4.1.5",
     "prettier": "^3.6.2"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "pnpm": {
-    "overrides": {
-      "workflow": "link:"
-    }
-  },
-  "dependencies": {
-    "workflow": "link:"
   }
 }

@@ -3,8 +3,9 @@ import pluginJs from '@eslint/js'
 import { defineConfig } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 import prettierPlugin from 'eslint-plugin-prettier/recommended'
+import type { Linter } from 'eslint'
 
-export default defineConfig([
+const config: Linter.FlatConfig[] = defineConfig([
   { files: ['**/*.{js,mjs,cjs,ts}'] },
   {
     languageOptions: {
@@ -28,3 +29,5 @@ export default defineConfig([
     }
   }
 ])
+
+export default config

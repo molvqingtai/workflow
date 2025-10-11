@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Workflow, Work, Step, RUN_STATUS } from 'workflow'
+import { Workflow, Work, Step, RUN_STATUS } from '@whatfa/workflow'
 
 describe('基础功能测试', () => {
   describe('正常执行流程', () => {
@@ -26,8 +26,8 @@ describe('基础功能测试', () => {
       expect(result.status).toBe('success')
       expect(result.input).toBe(10)
       expect(result.output).toHaveLength(1)
-      expect(result.output[0].status).toBe('success')
-      expect(result.output[0].output).toBe(20)
+      expect(result.output?.[0].status).toBe('success')
+      expect(result.output?.[0].output).toBe(20)
     })
 
     it('应该能够执行多个Step的Work', async () => {
@@ -101,31 +101,31 @@ describe('基础功能测试', () => {
         id: 'pause-step',
         run: async (input: number, context) => {
           stepStarted = true
-          // 模拟长时间运行
+          // Simulate a long-running execution
           await new Promise((resolve) => setTimeout(resolve, 100))
           return input * 2
         }
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = step.start(10, {
         workflow: new Workflow({ id: 'dummy-workflow', works: [] }),
         work: new Work({ id: 'dummy', steps: [] })
       })
 
-      // 等待执行开始
+      // Wait for execution to begin
       await new Promise((resolve) => setTimeout(resolve, 50))
       expect(stepStarted).toBe(true)
 
-      // 暂停
+      // Pause
       const pauseResult = await step.pause()
       expect(pauseResult.status).toBe('paused')
 
-      // 恢复
+      // Resume
       const resumeResult = await step.resume()
       expect(resumeResult.status).toBe('running')
 
-      // 等待完成
+      // Wait for completion
       const result = await runPromise
       expect(result.status).toBe('success')
       expect(result.output).toBe(20)
@@ -333,18 +333,18 @@ describe('基础功能测试', () => {
         work: new Work({ id: 'dummy', steps: [] })
       }
 
-      // 开始执行
+      // Start execution
       const runPromise = step.start(10, context)
       await new Promise((resolve) => setTimeout(resolve, 50))
       expect(stepStarted).toBe(true)
       expect(step.status).toBe('running')
 
-      // 停止正在运行的Step
+      // Stop the step while it is running
       const stopResult = await step.stop()
       expect(stopResult.status).toBe(RUN_STATUS.STOPPED)
       expect(step.status).toBe(RUN_STATUS.STOPPED)
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
 
     it('应该能够停止正在运行的Work', async () => {
@@ -377,20 +377,20 @@ describe('基础功能测试', () => {
         works: [work]
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(10)
       await new Promise((resolve) => setTimeout(resolve, 50))
       expect(step1Started).toBe(true)
 
-      // 停止正在运行的Work
+      // Stop the work while it is running
       const stopResult = await work.stop()
       expect(stopResult.status).toBe(RUN_STATUS.STOPPED)
 
-      // 验证所有 steps 都被停止
+      // Verify whether each step is stopped
       expect(step1.status).toBe(RUN_STATUS.STOPPED)
-      expect(step2.status).toBe(RUN_STATUS.PENDING) // step2还没开始运行，所以不能被停止
+      expect(step2.status).toBe(RUN_STATUS.PENDING) // step2 hasn't started yet, so it cannot be stopped
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
 
     it('应该能够停止正在运行的Workflow', async () => {
@@ -425,21 +425,21 @@ describe('基础功能测试', () => {
         works: [work1, work2]
       })
 
-      // 开始执行
+      // Start execution
       const runPromise = workflow.start(5)
       await new Promise((resolve) => setTimeout(resolve, 50))
 
-      // 停止正在运行的workflow
+      // Stop the workflow while it is running
       const stopResult = await workflow.stop()
       expect(stopResult.status).toBe(RUN_STATUS.STOPPED)
 
-      // 验证所有 works 和 steps 都被停止
+      // Verify all works and steps are stopped
       expect(work1.status).toBe(RUN_STATUS.STOPPED)
       expect(work2.status).toBe(RUN_STATUS.STOPPED)
       expect(step1.status).toBe(RUN_STATUS.STOPPED)
       expect(step2.status).toBe(RUN_STATUS.STOPPED)
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
 
     it('不能停止PENDING状态的Step', async () => {
@@ -450,7 +450,7 @@ describe('基础功能测试', () => {
 
       expect(step.status).toBe(RUN_STATUS.PENDING)
 
-      // 尝试停止PENDING状态的step（应该无操作）
+      // Attempt to stop a PENDING step (should no-op)
       const stopResult = await step.stop()
       expect(stopResult.status).toBe(RUN_STATUS.PENDING)
       expect(step.status).toBe(RUN_STATUS.PENDING)
@@ -470,20 +470,20 @@ describe('基础功能测试', () => {
         work: new Work({ id: 'dummy', steps: [] })
       }
 
-      // 开始执行
+      // Start execution
       const runPromise = step.start(10, context)
       await new Promise((resolve) => setTimeout(resolve, 50))
 
-      // 暂停执行
+      // Pause execution
       await step.pause()
       expect(step.status).toBe('paused')
 
-      // 停止暂停中的step
+      // Stop the step while it is paused
       const stopResult = await step.stop()
       expect(stopResult.status).toBe(RUN_STATUS.STOPPED)
       expect(step.status).toBe(RUN_STATUS.STOPPED)
 
-      // 不等待被停止的执行，因为它会永远等待
+      // Do not await the stopped execution because it would hang forever
     })
 
     it('不能停止已完成的Step', async () => {
@@ -497,12 +497,12 @@ describe('基础功能测试', () => {
         work: new Work({ id: 'dummy', steps: [] })
       }
 
-      // 先完成执行
+      // Complete the execution first
       await step.start(10, context)
       expect(step.status).toBe('success')
       expect(step.output).toBe(20)
 
-      // 尝试停止已完成的 step（应该无操作）
+      // Attempt to stop a completed step (should no-op)
       const stopResult = await step.stop()
       expect(stopResult.status).toBe('success')
       expect(step.status).toBe('success')
@@ -521,15 +521,15 @@ describe('基础功能测试', () => {
         work: new Work({ id: 'dummy', steps: [] })
       }
 
-      // 先让执行失败
+      // Force the execution to fail first
       try {
         await step.start(10, context)
       } catch (error) {
-        // 忽略错误
+        // Ignore the error
       }
       expect(step.status).toBe('failed')
 
-      // 尝试停止失败的 step（应该无操作）
+      // Attempt to stop the failed step (should no-op)
       const stopResult = await step.stop()
       expect(stopResult.status).toBe('failed')
       expect(step.status).toBe('failed')

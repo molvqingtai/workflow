@@ -1,6 +1,6 @@
-import type { WorkflowSnapshot, WorkSnapshot, StepSnapshot } from 'workflow'
+import type { WorkflowSnapshot, WorkSnapshot, StepSnapshot } from '@whatfa/workflow'
 
-// 所有快照类型的联合类型
+// Union of every snapshot variant
 type AnySnapshot = WorkflowSnapshot | WorkSnapshot | StepSnapshot
 
 // Storage interface
