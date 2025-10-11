@@ -22,6 +22,14 @@
   ],
   "author": "molvqingtai",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molvqingtai/workflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/molvqingtai/workflow/issues"
+  },
+  "homepage": "https://github.com/molvqingtai/workflow",
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
