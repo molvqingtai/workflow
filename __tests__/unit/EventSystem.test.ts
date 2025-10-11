@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Workflow, Work, Step, RUN_STATUS } from '@whatfa/workflow'
 
-describe('事件系统测试', () => {
-  describe('Step级别事件', () => {
-    it('应该正确触发Step生命周期事件', async () => {
+describe('Event System Tests', () => {
+  describe('Step-level Events', () => {
+    it('triggers step lifecycle events correctly', async () => {
       const events: string[] = []
 
       const step = new Step({
@@ -28,7 +28,7 @@ describe('事件系统测试', () => {
       expect(result.status).toBe('success')
     })
 
-    it('应该正确触发Step暂停恢复事件', async () => {
+    it('triggers step pause and resume events', async () => {
       const events: string[] = []
 
       const step = new Step({
@@ -57,7 +57,7 @@ describe('事件系统测试', () => {
       expect(events).toContain('step:resume')
     })
 
-    it('应该正确触发Step失败事件', async () => {
+    it('emits step failure events', async () => {
       const events: string[] = []
       const errors: any[] = []
 
@@ -84,8 +84,8 @@ describe('事件系统测试', () => {
     })
   })
 
-  describe('Work级别事件', () => {
-    it('应该正确触发Work生命周期事件', async () => {
+  describe('Work-level Events', () => {
+    it('triggers work lifecycle events', async () => {
       const events: string[] = []
 
       const step = new Step({
@@ -120,8 +120,8 @@ describe('事件系统测试', () => {
     })
   })
 
-  describe('Workflow级别事件', () => {
-    it('应该正确触发Workflow生命周期事件', async () => {
+  describe('Workflow-level Events', () => {
+    it('triggers workflow lifecycle events', async () => {
       const events: string[] = []
 
       const step = new Step({
@@ -158,8 +158,8 @@ describe('事件系统测试', () => {
     })
   })
 
-  describe('事件数据完整性', () => {
-    it('事件应该携带正确的快照数据', async () => {
+  describe('Event Payload Integrity', () => {
+    it('includes correct snapshot data on events', async () => {
       let eventSnapshot: any = null
 
       const step = new Step({
@@ -183,7 +183,7 @@ describe('事件系统测试', () => {
       expect(eventSnapshot.output).toBe(30)
     })
 
-    it('错误事件应该携带错误信息', async () => {
+    it('includes error details on failure events', async () => {
       let eventSnapshot: any = null
 
       const step = new Step({
@@ -208,8 +208,8 @@ describe('事件系统测试', () => {
       expect(eventSnapshot.error).toBe('Expected error')
     })
 
-    describe('Stop事件测试', () => {
-      it('应该正确触发Step stop事件', async () => {
+    describe('Stop Event Tests', () => {
+      it('triggers step stop events', async () => {
         const events: string[] = []
 
         const step = new Step({
@@ -240,7 +240,7 @@ describe('事件系统测试', () => {
         // Do not await the stopped execution because it would hang forever
       })
 
-      it('应该正确触发Work stop事件', async () => {
+      it('triggers work stop events', async () => {
         const events: string[] = []
 
         const step = new Step({
@@ -278,7 +278,7 @@ describe('事件系统测试', () => {
         // Do not await the stopped execution because it would hang forever
       })
 
-      it('应该正确触发Workflow stop事件', async () => {
+      it('triggers workflow stop events', async () => {
         const events: string[] = []
 
         const step = new Step({
@@ -318,7 +318,7 @@ describe('事件系统测试', () => {
         // Do not await the stopped execution because it would hang forever
       })
 
-      it('stop事件应该携带正确的快照数据', async () => {
+      it('attaches correct snapshot data to stop events', async () => {
         let eventSnapshot: any = null
 
         const step = new Step({
@@ -351,7 +351,7 @@ describe('事件系统测试', () => {
         // Do not await the stopped execution because it would hang forever
       })
 
-      it('停止已完成的组件不应该触发stop事件', async () => {
+      it('does not emit stop for completed components', async () => {
         const events: string[] = []
 
         const step = new Step({
@@ -382,7 +382,7 @@ describe('事件系统测试', () => {
         expect(step.status).toBe('success')
       })
 
-      it('停止失败的组件不应该触发stop事件', async () => {
+      it('does not emit stop for failed components', async () => {
         const events: string[] = []
 
         const step = new Step({

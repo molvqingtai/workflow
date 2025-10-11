@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Workflow, Work, Step, RUN_STATUS } from '@whatfa/workflow'
 
-describe('基础功能测试', () => {
-  describe('正常执行流程', () => {
-    it('应该能够正常执行完整的工作流', async () => {
+describe('Basic Functionality Tests', () => {
+  describe('Happy Path Execution', () => {
+    it('executes a complete workflow successfully', async () => {
       const step = new Step({
         id: 'test-step',
         run: async (input: number, context) => {
@@ -30,7 +30,7 @@ describe('基础功能测试', () => {
       expect(result.output?.[0].output).toBe(20)
     })
 
-    it('应该能够执行多个Step的Work', async () => {
+    it('executes a work with multiple steps', async () => {
       const step1 = new Step({
         id: 'step1',
         run: async (input: number, context) => input + 1
@@ -58,7 +58,7 @@ describe('基础功能测试', () => {
       expect(result.works[0].output).toBe(12) // (5 + 1) * 2
     })
 
-    it('应该能够执行多个Work的Workflow', async () => {
+    it('executes a workflow with multiple works', async () => {
       const step1 = new Step({
         id: 'step1',
         run: async (input: number, context) => input + 10
@@ -93,8 +93,8 @@ describe('基础功能测试', () => {
     })
   })
 
-  describe('暂停和恢复功能', () => {
-    it('应该能够暂停和恢复Step', async () => {
+  describe('Pause and Resume', () => {
+    it('pauses and resumes a step', async () => {
       let stepStarted = false
 
       const step = new Step({
@@ -131,7 +131,7 @@ describe('基础功能测试', () => {
       expect(result.output).toBe(20)
     })
 
-    it('应该能够暂停和恢复Work', async () => {
+    it('pauses and resumes a work', async () => {
       const step = new Step({
         id: 'pause-work-step',
         run: async (input: number, context) => {
@@ -166,8 +166,8 @@ describe('基础功能测试', () => {
     })
   })
 
-  describe('错误处理', () => {
-    it('Step执行失败时应该正确处理错误', async () => {
+  describe('Error Handling', () => {
+    it('handles errors when a step fails', async () => {
       const step = new Step({
         id: 'error-step',
         run: async (input: number, context) => {
@@ -185,7 +185,7 @@ describe('基础功能测试', () => {
       expect(step.status).toBe('failed')
     })
 
-    it('Work中Step失败时应该传播错误', async () => {
+    it('propagates errors when a step fails inside a work', async () => {
       const step1 = new Step({
         id: 'success-step',
         run: async (input: number, context) => input + 1
@@ -213,7 +213,7 @@ describe('基础功能测试', () => {
       expect(workflow.status).toBe('failed')
     })
 
-    it('Workflow中Work失败时应该传播错误', async () => {
+    it('propagates errors when a work fails inside a workflow', async () => {
       const successStep = new Step({
         id: 'success-step',
         run: async (input: number, context) => input * 2
@@ -247,8 +247,8 @@ describe('基础功能测试', () => {
     })
   })
 
-  describe('状态管理', () => {
-    it('应该正确维护执行状态', async () => {
+  describe('State Management', () => {
+    it('maintains execution state correctly', async () => {
       const step = new Step({
         id: 'status-step',
         run: async (input: number, context) => {
@@ -268,7 +268,7 @@ describe('基础功能测试', () => {
       expect(result.status).toBe('success')
     })
 
-    it('应该防止重复执行', async () => {
+    it('prevents repeated execution', async () => {
       const step = new Step({
         id: 'duplicate-step',
         run: async (input: number, context) => input * 2
@@ -286,7 +286,7 @@ describe('基础功能测试', () => {
       expect(result1.output).toBe(result2.output)
     })
 
-    it('应该正确处理暂停状态', async () => {
+    it('handles pause state correctly', async () => {
       const step = new Step({
         id: 'pause-status-step',
         run: async (input: number, context) => {
@@ -315,8 +315,8 @@ describe('基础功能测试', () => {
     })
   })
 
-  describe('停止功能', () => {
-    it('应该能够停止正在运行的Step', async () => {
+  describe('Stop Controls', () => {
+    it('stops a running step', async () => {
       let stepStarted = false
 
       const step = new Step({
@@ -347,7 +347,7 @@ describe('基础功能测试', () => {
       // Do not await the stopped execution because it would hang forever
     })
 
-    it('应该能够停止正在运行的Work', async () => {
+    it('stops a running work', async () => {
       let step1Started = false
 
       const step1 = new Step({
@@ -393,7 +393,7 @@ describe('基础功能测试', () => {
       // Do not await the stopped execution because it would hang forever
     })
 
-    it('应该能够停止正在运行的Workflow', async () => {
+    it('stops a running workflow', async () => {
       const step1 = new Step({
         id: 'stop-workflow-step1',
         run: async (input: number, context) => {
@@ -442,7 +442,7 @@ describe('基础功能测试', () => {
       // Do not await the stopped execution because it would hang forever
     })
 
-    it('不能停止PENDING状态的Step', async () => {
+    it('does not stop a pending step', async () => {
       const step = new Step({
         id: 'pending-step',
         run: async (input: number, context) => input * 2
@@ -456,7 +456,7 @@ describe('基础功能测试', () => {
       expect(step.status).toBe(RUN_STATUS.PENDING)
     })
 
-    it('应该能够停止暂停中的Step', async () => {
+    it('stops a paused step', async () => {
       const step = new Step({
         id: 'paused-step',
         run: async (input: number, context) => {
@@ -486,7 +486,7 @@ describe('基础功能测试', () => {
       // Do not await the stopped execution because it would hang forever
     })
 
-    it('不能停止已完成的Step', async () => {
+    it('does not stop a completed step', async () => {
       const step = new Step({
         id: 'completed-step',
         run: async (input: number, context) => input * 2
@@ -508,7 +508,7 @@ describe('基础功能测试', () => {
       expect(step.status).toBe('success')
     })
 
-    it('不能停止失败的Step', async () => {
+    it('does not stop a failed step', async () => {
       const step = new Step({
         id: 'failed-step',
         run: async (input: number, context) => {

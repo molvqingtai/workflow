@@ -4,9 +4,9 @@ import type { RunStatus } from '@whatfa/workflow'
 
 const asNumber = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined)
 
-describe('完整流程集成测试', () => {
-  describe('Workflow到Step的完整执行流程', () => {
-    it('应该能够完整执行Workflow→Work→Step流程', async () => {
+describe('End-to-End Integration Tests', () => {
+  describe('Workflow-to-Step Full Execution', () => {
+    it('runs the Workflow -> Work -> Step sequence', async () => {
       const step1 = new Step({
         id: 'step-1',
         run: async (input: number) => {
@@ -53,7 +53,7 @@ describe('完整流程集成测试', () => {
       expect(step2.output).toBe(20)
     })
 
-    it('应该能够暂停整个Workflow并影响到所有Step', async () => {
+    it('pauses the workflow and all steps', async () => {
       let step1Started = false
       let step2Started = false
 
@@ -110,7 +110,7 @@ describe('完整流程集成测试', () => {
       expect(finalResult.works[0].output).toBe(25) // (10 * 2) + 5
     })
 
-    it('应该能够从快照数据重建完整的Workflow状态', async () => {
+    it('rebuilds workflow state from snapshot data', async () => {
       // Create snapshot data from a previously executed workflow
       const workflowSnapshot = {
         id: 'restored-workflow',
@@ -212,7 +212,7 @@ describe('完整流程集成测试', () => {
       expect(currentSnapshot.works[0].steps).toHaveLength(2)
     })
 
-    it('应该能够处理执行中的错误并正确传播', async () => {
+    it('handles runtime errors and propagates status', async () => {
       const errorStep = new Step({
         id: 'error-step',
         run: async (input: number) => {
@@ -249,8 +249,8 @@ describe('完整流程集成测试', () => {
     })
   })
 
-  describe('多Work并行执行测试', () => {
-    it('应该能够并行执行多个Work', async () => {
+  describe('Parallel Work Execution', () => {
+    it('executes multiple works in parallel', async () => {
       const work1Step = new Step({
         id: 'work1-step',
         run: async (input: number) => {
@@ -297,7 +297,7 @@ describe('完整流程集成测试', () => {
       expect(work2.output).toBe(110) // 10 + 100
     })
 
-    it('应该能够处理部分Work失败的情况', async () => {
+    it('handles partial work failure', async () => {
       const successStep = new Step({
         id: 'success-step',
         run: async (input: number) => input * 2
@@ -341,8 +341,8 @@ describe('完整流程集成测试', () => {
     })
   })
 
-  describe('事件传播完整性测试', () => {
-    it('应该能够正确传播所有层级的事件', async () => {
+  describe('Event Propagation Integrity', () => {
+    it('propagates events through all levels', async () => {
       const allEvents: string[] = []
 
       const step = new Step({
@@ -384,7 +384,7 @@ describe('完整流程集成测试', () => {
       ])
     })
 
-    it('应该能够正确传播暂停/恢复事件', async () => {
+    it('propagates pause and resume events', async () => {
       const pauseResumeEvents: string[] = []
 
       const step = new Step({
@@ -430,8 +430,8 @@ describe('完整流程集成测试', () => {
     })
   })
 
-  describe('暂停→快照恢复→继续执行流程', () => {
-    it('应该能够在暂停后从快照恢复并继续执行', async () => {
+  describe('Pause -> Snapshot Restore -> Resume', () => {
+    it('restores from snapshot after pause and continues', async () => {
       // Phase one: execute the workflow and then pause it
       const step1 = new Step({
         id: 'resume-step-1',
@@ -546,7 +546,7 @@ describe('完整流程集成测试', () => {
       expect(restoredStep2.output).toBe(110)
     })
 
-    it('应该能够处理执行中暂停的复杂场景', async () => {
+    it('handles complex mid-execution pause scenarios', async () => {
       let step1Executed = false
       let step2Executed = false
       let step3Executed = false
@@ -692,8 +692,8 @@ describe('完整流程集成测试', () => {
     })
   })
 
-  describe('Stop功能集成测试', () => {
-    it('应该能够停止正在运行的复杂workflow', async () => {
+  describe('Stop Control Integration', () => {
+    it('stops a complex running workflow', async () => {
       const step1 = new Step({
         id: 'integration-stop-step1',
         run: async (input: number) => {
@@ -761,7 +761,7 @@ describe('完整流程集成测试', () => {
       // Do not await the stopped execution because it would hang forever
     })
 
-    it('应该能够停止特定的正在运行的Work', async () => {
+    it('stops a specific running work', async () => {
       const step1 = new Step({
         id: 'selective-stop-step1',
         run: async (input: number) => {
@@ -812,7 +812,7 @@ describe('完整流程集成测试', () => {
       // Do not await the stopped execution because it would hang forever
     })
 
-    it('不能停止已完成的组件', async () => {
+    it('does not stop completed components', async () => {
       const step = new Step({
         id: 'completed-step',
         run: async (input: number) => {
@@ -849,7 +849,7 @@ describe('完整流程集成测试', () => {
       expect(step.output).toBe(10)
     })
 
-    it('应该能够停止暂停中的Step', async () => {
+    it('stops a paused step within the workflow', async () => {
       const step = new Step({
         id: 'pause-stop-step',
         run: async (input: number) => {
