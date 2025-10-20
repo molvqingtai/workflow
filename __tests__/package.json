@@ -17,7 +17,7 @@
     "@whatfa/workflow": "workspace:*"
   },
   "devDependencies": {
-    "@eslint/js": "^9.37.0",
+    "@eslint/js": "^9.38.0",
     "@types/node": "^24.7.1",
     "eslint": "^9.37.0",
     "eslint-config-prettier": "^10.1.8",
