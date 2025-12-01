@@ -1,5 +1,6 @@
 import EventHub from './EventHub'
 import uuid from './utils/uuid'
+import { MemoryOptimizer } from './MemoryOptimizer'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -11,7 +12,7 @@ export const RUN_STATUS = {
   PAUSED: 'paused',
   SUCCESS: 'success',
   FAILED: 'failed',
-  STOPPED: 'stoped'
+  STOPPED: 'stopped'
 } as const
 
 export type RunStatus = (typeof RUN_STATUS)[keyof typeof RUN_STATUS]
@@ -231,8 +232,16 @@ export class Workflow<
     options?.works.forEach((work) => this.add(work))
   }
 
+  /**
+   * Get snapshot with caching optimization
+   */
   getSnapshot(): WorkflowSnapshot<Input, Output, Meta, WorkSnapshot> {
-    return {
+    const cached = MemoryOptimizer.getCachedSnapshot<WorkflowSnapshot<Input, Output, Meta, WorkSnapshot>>(this)
+    if (cached) {
+      return cached
+    }
+
+    const snapshot: WorkflowSnapshot<Input, Output, Meta, WorkSnapshot> = {
       id: this.id,
       name: this.name,
       description: this.description,
@@ -244,56 +253,92 @@ export class Workflow<
       meta: this.meta,
       works: this.works.map((work) => work.getSnapshot())
     }
+
+    MemoryOptimizer.cacheSnapshot(this, snapshot)
+    return snapshot
   }
 
+  /**
+   * Mark this component as changed (invalidates snapshot cache)
+   */
+  private markChanged(): void {
+    MemoryOptimizer.markChanged(this)
+  }
+
+  /**
+   * Add a work to the workflow with proper listener management
+   */
   add(work: Work<any, any, any>) {
+    // Set parent references (both direct and WeakMap)
     work.workflow = this
+    MemoryOptimizer.setParentWorkflow(work, this)
+
+    // Remove duplicate and add work
     this.works = [...this.works.filter((w) => w.id !== work.id), work]
-    work.on(WORK_EVENT.START, (snapshot) => {
+
+    // Store listener cleanup functions in WeakMap
+    const cleanups: Array<() => void> = []
+
+    // Helper to register event with cleanup
+    const bindEvent = <K extends keyof WorkEventMap>(event: K, handler: WorkEventMap[K]) => {
+      work.on(event, handler)
+      cleanups.push(() => work.off(event, handler))
+    }
+
+    // Bind all work events
+    bindEvent(WORK_EVENT.START, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.START, snapshot)
     })
-    work.on(WORK_EVENT.PAUSE, async (snapshot) => {
+    bindEvent(WORK_EVENT.PAUSE, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.PAUSE, snapshot)
     })
-    work.on(WORK_EVENT.RESUME, async (snapshot) => {
+    bindEvent(WORK_EVENT.RESUME, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.RESUME, snapshot)
     })
-    work.on(WORK_EVENT.STOP, async (snapshot) => {
+    bindEvent(WORK_EVENT.STOP, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.STOP, snapshot)
     })
-    work.on(WORK_EVENT.SUCCESS, (snapshot) => {
+    bindEvent(WORK_EVENT.SUCCESS, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
     })
-    work.on(WORK_EVENT.FAILED, (snapshot) => {
+    bindEvent(WORK_EVENT.FAILED, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
     })
-    work.on(STEP_EVENT.START, (snapshot) => {
+
+    // Bind all step events
+    bindEvent(STEP_EVENT.START, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.START, snapshot)
     })
-    work.on(STEP_EVENT.PAUSE, (snapshot) => {
+    bindEvent(STEP_EVENT.PAUSE, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
     })
-    work.on(STEP_EVENT.RESUME, (snapshot) => {
+    bindEvent(STEP_EVENT.RESUME, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
     })
-    work.on(STEP_EVENT.SUCCESS, (snapshot) => {
+    bindEvent(STEP_EVENT.SUCCESS, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
     })
-    work.on(STEP_EVENT.FAILED, (snapshot) => {
+    bindEvent(STEP_EVENT.FAILED, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
     })
-    work.on(STEP_EVENT.CHANGE, (snapshot) => {
+    bindEvent(STEP_EVENT.CHANGE, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
     })
-    work.on(STEP_EVENT.STOP, (snapshot) => {
+    bindEvent(STEP_EVENT.STOP, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.STOP, snapshot)
     })
 
-    work.on(WORK_EVENT.CHANGE, (snapshot) => {
+    // Work change event invalidates workflow cache
+    bindEvent(WORK_EVENT.CHANGE, (snapshot) => {
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
+      this.markChanged()
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
     })
 
+    // Register cleanup functions
+    MemoryOptimizer.registerListenerCleanups(work, cleanups)
+
+    this.markChanged()
     const snapshot = this.getSnapshot()
     this.eventHub.emit(WORKFLOW_EVENT.ADD, snapshot)
     this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -304,14 +349,25 @@ export class Workflow<
     return this.works.find((work) => work.id === workId)
   }
 
+  /**
+   * Delete a work with proper cleanup
+   */
   delete(workId: string) {
     this.works = this.works.filter((work) => {
       if (work.id === workId) {
+        // Cleanup all listeners registered for this work
+        MemoryOptimizer.cleanupListeners(work)
+        // Clear parent reference
+        MemoryOptimizer.clearParentWorkflow(work)
+        // Clear work's own event hub
         work.eventHub.off()
+        work.workflow = undefined
         return false
       }
       return true
     })
+
+    this.markChanged()
     this.eventHub.emit(WORKFLOW_EVENT.DELETE, this.getSnapshot())
     this.eventHub.emit(WORKFLOW_EVENT.CHANGE, this.getSnapshot())
     return this
@@ -328,6 +384,7 @@ export class Workflow<
       }
       this.input = input
       this.status = RUN_STATUS.RUNNING
+      this.markChanged()
       let snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.START, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -335,6 +392,7 @@ export class Workflow<
         this.works.map((work) => work.start(input as any, { workflow: this }))
       )) as Output
       this.status = RUN_STATUS.SUCCESS
+      this.markChanged()
       snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.SUCCESS, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -342,6 +400,7 @@ export class Workflow<
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -356,6 +415,7 @@ export class Workflow<
       }
       this.status = RUN_STATUS.PAUSED
       await Promise.all(this.works.map((work) => work.pause()))
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.PAUSE, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -363,12 +423,14 @@ export class Workflow<
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
       throw error
     }
   }
+
   async resume() {
     try {
       if (this.status !== RUN_STATUS.PAUSED) {
@@ -376,6 +438,7 @@ export class Workflow<
       }
       this.status = RUN_STATUS.RUNNING
       await Promise.all(this.works.map((work) => work.resume()))
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.RESUME, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -383,6 +446,7 @@ export class Workflow<
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORKFLOW_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -401,6 +465,7 @@ export class Workflow<
     }
     this.status = RUN_STATUS.STOPPED
     await Promise.all(this.works.map((work) => work.stop()))
+    this.markChanged()
     const snapshot = this.getSnapshot()
     this.eventHub.emit(WORKFLOW_EVENT.STOP, snapshot)
     this.eventHub.emit(WORKFLOW_EVENT.CHANGE, snapshot)
@@ -430,6 +495,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
   workflow?: Workflow<any, any, any>
   readonly eventHub: EventHub<WorkEventMap<WorkSnapshot<Input, Output, Meta>, StepSnapshot>>
   private running: boolean = false
+
   constructor(options?: WorkOptions<Input, Output, Meta>) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
@@ -443,8 +509,16 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     options?.steps.forEach((step) => this.add(step))
   }
 
+  /**
+   * Get snapshot with caching optimization
+   */
   getSnapshot(): WorkSnapshot<Input, Output, Meta> {
-    return {
+    const cached = MemoryOptimizer.getCachedSnapshot<WorkSnapshot<Input, Output, Meta>>(this)
+    if (cached) {
+      return cached
+    }
+
+    const snapshot: WorkSnapshot<Input, Output, Meta> = {
       id: this.id,
       name: this.name,
       description: this.description,
@@ -456,73 +530,121 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       meta: this.meta,
       steps: this.steps.map((step) => step.getSnapshot())
     }
+
+    MemoryOptimizer.cacheSnapshot(this, snapshot)
+    return snapshot
   }
 
+  /**
+   * Mark this component as changed (invalidates snapshot cache)
+   */
+  private markChanged(): void {
+    MemoryOptimizer.markChanged(this)
+  }
+
+  /**
+   * Add a step to the work with proper listener management
+   */
   add(step: Step<any, any, any>) {
+    // Set parent references (both direct and WeakMap)
     step.work = this
+    MemoryOptimizer.setParentWork(step, this)
+
+    // Remove duplicate and add step
     this.steps = [...this.steps.filter((s) => s.id !== step.id), step]
-    step.on(STEP_EVENT.START, async (snapshot) => {
+
+    // Store listener cleanup functions in WeakMap
+    const cleanups: Array<() => void> = []
+
+    // Helper to register event with cleanup
+    const bindEvent = <K extends keyof StepEventMap>(event: K, handler: StepEventMap[K]) => {
+      step.on(event, handler)
+      cleanups.push(() => step.off(event, handler))
+    }
+
+    bindEvent(STEP_EVENT.START, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.START, snapshot)
       if (this.status === RUN_STATUS.RUNNING) return
       this.status = RUN_STATUS.RUNNING
+      this.markChanged()
       const workSnapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.START, workSnapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
-    step.on(STEP_EVENT.PAUSE, async (snapshot) => {
+    bindEvent(STEP_EVENT.PAUSE, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
       if (this.status === RUN_STATUS.PAUSED) return
       this.status = RUN_STATUS.PAUSED
+      this.markChanged()
       const workSnapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.PAUSE, workSnapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
-    step.on(STEP_EVENT.RESUME, async (snapshot) => {
+    bindEvent(STEP_EVENT.RESUME, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
       if (this.status === RUN_STATUS.RUNNING) return
       this.status = RUN_STATUS.RUNNING
+      this.markChanged()
       const workSnapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.RESUME, workSnapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
-    step.on(STEP_EVENT.STOP, async (snapshot) => {
+    bindEvent(STEP_EVENT.STOP, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.STOP, snapshot)
       if (this.status === RUN_STATUS.STOPPED) return
       this.status = RUN_STATUS.STOPPED
+      this.markChanged()
       const workSnapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.STOP, workSnapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, workSnapshot)
     })
 
-    step.on(STEP_EVENT.SUCCESS, async (snapshot) => {
+    bindEvent(STEP_EVENT.SUCCESS, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
     })
 
-    step.on(STEP_EVENT.FAILED, async (snapshot) => {
+    bindEvent(STEP_EVENT.FAILED, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
     })
 
-    step.on(STEP_EVENT.CHANGE, async (snapshot) => {
+    // Step change event invalidates work cache
+    bindEvent(STEP_EVENT.CHANGE, (snapshot) => {
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
+      this.markChanged()
       this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
     })
 
+    // Register cleanup functions
+    MemoryOptimizer.registerListenerCleanups(step, cleanups)
+
+    this.markChanged()
     this.eventHub.emit(WORK_EVENT.ADD, this.getSnapshot())
     this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
     return this
   }
 
+  /**
+   * Delete a step with proper cleanup
+   */
   delete(stepId: string) {
     this.steps = this.steps.filter((step) => {
       if (step.id === stepId) {
+        // Cleanup all listeners registered for this step
+        MemoryOptimizer.cleanupListeners(step)
+        // Clear parent reference
+        MemoryOptimizer.clearParentWork(step)
+        // Clear step's own event hub
         step.eventHub.off()
+        step.work = undefined
         return false
       }
       return true
     })
+
+    this.markChanged()
     this.eventHub.emit(WORK_EVENT.DELETE, this.getSnapshot())
     this.eventHub.emit(WORK_EVENT.CHANGE, this.getSnapshot())
     return this
@@ -544,6 +666,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.input = input
       this.status = RUN_STATUS.RUNNING
+      this.markChanged()
       let snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.START, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -554,6 +677,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.status = RUN_STATUS.SUCCESS
       this.output = currentInput as Output
+      this.markChanged()
       snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.SUCCESS, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -561,12 +685,14 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
       throw error
     }
   }
+
   async pause() {
     try {
       if (this.status === RUN_STATUS.PAUSED || this.status !== RUN_STATUS.RUNNING) {
@@ -574,6 +700,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.status = RUN_STATUS.PAUSED
       await Promise.all(this.steps.map((step) => step.pause()))
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.PAUSE, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -581,6 +708,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -594,6 +722,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
         return this
       }
       this.status = RUN_STATUS.RUNNING
+      this.markChanged()
       const snapshot = this.getSnapshot()
       if (this.running) {
         this.eventHub.emit(WORK_EVENT.RESUME, snapshot)
@@ -607,6 +736,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -626,6 +756,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.status = RUN_STATUS.STOPPED
       await Promise.all(this.steps.map((step) => step.stop()))
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.STOP, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -633,6 +764,7 @@ export class Work<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(WORK_EVENT.FAILED, snapshot)
       this.eventHub.emit(WORK_EVENT.CHANGE, snapshot)
@@ -665,6 +797,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
   private stopResolvers?: PromiseWithResolvers<void>
   private run?: (input: Input, context: RunContext<Step<Input, Output, Meta>>) => MaybePromise<Output>
   private runned: boolean = false
+
   constructor(options?: StepOptions<Input, Output, Meta>) {
     this.id = options?.id ?? uuid()
     this.name = options?.name
@@ -679,8 +812,16 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     this.eventHub = new EventHub<StepEventMap<StepSnapshot<Input, Output, Meta>>>()
   }
 
+  /**
+   * Get snapshot with caching optimization
+   */
   getSnapshot(): StepSnapshot<Input, Output, Meta> {
-    return {
+    const cached = MemoryOptimizer.getCachedSnapshot<StepSnapshot<Input, Output, Meta>>(this)
+    if (cached) {
+      return cached
+    }
+
+    const snapshot: StepSnapshot<Input, Output, Meta> = {
       id: this.id,
       name: this.name,
       description: this.description,
@@ -691,6 +832,16 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       error: this.error,
       meta: this.meta
     }
+
+    MemoryOptimizer.cacheSnapshot(this, snapshot)
+    return snapshot
+  }
+
+  /**
+   * Mark this component as changed (invalidates snapshot cache)
+   */
+  private markChanged(): void {
+    MemoryOptimizer.markChanged(this)
   }
 
   async start(input: Input, context?: StepContext) {
@@ -705,6 +856,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.input = input
       this.status = RUN_STATUS.RUNNING
+      this.markChanged()
       let snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.START, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -715,6 +867,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       await this.stopResolvers?.promise
       this.output = output
       this.status = RUN_STATUS.SUCCESS
+      this.markChanged()
       snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.SUCCESS, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -722,6 +875,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -730,14 +884,15 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       this.runned = true
     }
   }
+
   async pause() {
     try {
       if (this.status === RUN_STATUS.PAUSED || this.status !== RUN_STATUS.RUNNING) {
         return this
       }
       this.status = RUN_STATUS.PAUSED
-      // this.pauseResolvers?.resolve()
       this.pauseResolvers = Promise.withResolvers<void>()
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.PAUSE, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -745,12 +900,14 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
       throw error
     }
   }
+
   async resume() {
     try {
       if (this.status !== RUN_STATUS.PAUSED) {
@@ -758,6 +915,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.status = RUN_STATUS.RUNNING
       this.pauseResolvers?.resolve()
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.RESUME, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -765,6 +923,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -784,6 +943,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
       }
       this.status = RUN_STATUS.STOPPED
       this.stopResolvers = Promise.withResolvers<void>()
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.STOP, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
@@ -791,6 +951,7 @@ export class Step<Input = unknown, Output = Input, Meta extends UnknownRecord = 
     } catch (error) {
       this.status = RUN_STATUS.FAILED
       this.error = (error as Error).message
+      this.markChanged()
       const snapshot = this.getSnapshot()
       this.eventHub.emit(STEP_EVENT.FAILED, snapshot)
       this.eventHub.emit(STEP_EVENT.CHANGE, snapshot)
